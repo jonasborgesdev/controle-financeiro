@@ -122,6 +122,30 @@ export interface RecurringRule {
   updated_at: string
 }
 
+export interface Budget {
+  id: string
+  user_id: string
+  category_id: string
+  year: number
+  month: number
+  planned_amount: number
+  created_at: string
+  updated_at: string
+}
+
+export interface SavingsGoal {
+  id: string
+  user_id: string
+  name: string
+  target_amount: number
+  current_amount: number
+  monthly_target: number
+  deadline: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -171,6 +195,18 @@ export interface Database {
         Row: RecurringRule
         Insert: Omit<RecurringRule, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<RecurringRule, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      budgets: {
+        Row: Budget
+        Insert: Omit<Budget, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Budget, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      savings_goals: {
+        Row: SavingsGoal
+        Insert: Omit<SavingsGoal, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<SavingsGoal, 'id' | 'created_at' | 'updated_at'>>
         Relationships: []
       }
     }

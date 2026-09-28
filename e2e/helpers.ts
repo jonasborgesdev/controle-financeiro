@@ -67,5 +67,5 @@ export async function login(page: Page, email: string, password: string) {
   await page.getByLabel("Senha").fill(password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText("Previsto e realizado no mesmo lugar.")).toBeVisible();
+  await expect(page.getByText("Visão clara do mês, sem abrir planilha.")).toBeVisible();
 }

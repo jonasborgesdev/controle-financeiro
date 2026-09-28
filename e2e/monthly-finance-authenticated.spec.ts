@@ -43,7 +43,8 @@ test.describe("fluxo financeiro autenticado", () => {
 
     await page.getByRole("link", { name: "Ganhos/Gastos" }).click();
     await expect(page).toHaveURL(/\/transacoes/);
-    await page.getByRole("button", { name: "Novo ganho" }).click();
+    await page.getByRole("button", { name: "Novo lançamento" }).click();
+    await page.getByLabel("Tipo").selectOption("income");
     await page.getByLabel("Status").selectOption("paid");
     await page.getByLabel("Descrição").fill(entryDescription);
     await page.getByLabel("Valor previsto").fill("1000");
@@ -53,9 +54,10 @@ test.describe("fluxo financeiro autenticado", () => {
     await page.getByLabel("Conta").selectOption({ label: accountName });
     await page.getByRole("button", { name: "Salvar lançamento" }).click();
 
-    await expect(page.getByText(entryDescription)).toBeVisible();
-    await expect(page.getByText("Previsto: R$ 1.000,00")).toBeVisible();
-    await expect(page.getByText("Real: R$ 950,00")).toBeVisible();
+    const entryCard = page.getByText(entryDescription).locator("xpath=ancestor::div[contains(@class, 'rounded-2xl')][1]");
+    await expect(entryCard).toBeVisible();
+    await expect(entryCard.getByText("Previsto: R$ 1.000,00")).toBeVisible();
+    await expect(entryCard.getByText("Real: R$ 950,00")).toBeVisible();
   });
 
   test("cria conta com saldo inicial negativo pela interface", async ({ page }) => {
