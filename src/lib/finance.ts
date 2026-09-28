@@ -1,4 +1,4 @@
-import type { Account, Category, FinancialEntry, MonthlyBalance, RecurringRule, RecurringTransaction, Transaction } from "@/types/database";
+import type { Account, Budget, Category, FinancialEntry, MonthlyBalance, RecurringRule, RecurringTransaction, SavingsGoal, Transaction } from "@/types/database";
 
 export const defaultExpenseClassifications = new Set(["Gastos fixos", "Gastos variáveis"]);
 export const defaultIncomeClassifications = new Set(["Ganhos fixos", "Ganhos variáveis"]);
@@ -94,6 +94,38 @@ export function summarizeEntries(entries: FinancialEntry[]) {
     remainingIncome: expectedIncome - actualIncome,
     remainingExpenses: expectedExpenses - actualExpenses,
   };
+}
+
+export function expensesByBudget(categories: Category[], budgets: Budget[], entries: FinancialEntry[]) {
+  const budgetByCategory = new Map(budgets.map((budget) => [budget.category_id, Number(budget.planned_amount)]));
+
+  return categories
+    .filter((category) => category.type === "expense")
+    .map((category) => {
+      const planned = budgetByCategory.get(category.id) ?? 0;
+      const actual = entries
+        .filter((entry) => entry.entry_type === "expense" && entry.status === "paid" && entry.category_id === category.id)
+        .reduce((total, entry) => total + entryActualAmount(entry), 0);
+      return {
+        category,
+        planned,
+        actual,
+        difference: planned - actual,
+        percent: planned > 0 ? (actual / planned) * 100 : actual > 0 ? 100 : 0,
+      };
+    })
+    .filter((row) => row.planned > 0 || row.actual > 0)
+    .sort((first, second) => second.planned + second.actual - (first.planned + first.actual));
+}
+
+export function budgetTone(percent: number) {
+  if (percent > 100) return "red";
+  if (percent >= 85) return "amber";
+  return "emerald";
+}
+
+export function activeSavingsGoal(goals: SavingsGoal[]) {
+  return goals.find((goal) => goal.is_active) ?? null;
 }
 
 export function accountBalanceFromEntries(account: Account, entries: FinancialEntry[]) {

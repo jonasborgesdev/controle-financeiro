@@ -4,6 +4,7 @@ import LogoutButton from "@/components/auth/logout-button";
 const navItems = [
   { to: "/", label: "Início" },
   { to: "/transacoes", label: "Ganhos/Gastos" },
+  { to: "/planejamento", label: "Planejamento" },
   { to: "/recorrencias", label: "Recorrências" },
   { to: "/contas", label: "Contas" },
   { to: "/categorias", label: "Categorias" },

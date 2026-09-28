@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import {
   accountBalanceFromEntries,
   accountBalancesFromEntries,
+  activeSavingsGoal,
   entryActualAmount,
   entryDisplayAmount,
   formatCurrency,
@@ -19,10 +20,15 @@ import {
   summarizeEntries,
 } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
-import type { Account, Category, FinancialEntry } from "@/types/database";
+import type { Account, Category, FinancialEntry, SavingsGoal } from "@/types/database";
 
 const currentMonth = new Date().toISOString().slice(0, 7);
 const chartColors = ["#0891b2", "#10b981", "#f97316", "#8b5cf6", "#ef4444", "#64748b"];
+const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
+const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
+const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,notes,created_at,updated_at";
+const balanceEntryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,notes,created_at,updated_at";
+const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
@@ -44,6 +50,7 @@ function DashboardPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [monthEntries, setMonthEntries] = useState<FinancialEntry[]>([]);
   const [balanceEntries, setBalanceEntries] = useState<FinancialEntry[]>([]);
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,14 +60,15 @@ function DashboardPage() {
       setLoading(true);
       setError(null);
       const { startDate, endDate } = monthBounds(selectedMonth);
-      const [accountsResult, categoriesResult, monthEntriesResult, balanceEntriesResult] = await Promise.all([
-        supabase.from("accounts").select("*").eq("is_active", true).order("name"),
-        supabase.from("categories").select("*").eq("is_active", true).order("name"),
-        supabase.from("financial_entries").select("*").gte("due_date", startDate).lte("due_date", endDate).order("due_date", { ascending: false }),
-        supabase.from("financial_entries").select("*").order("due_date", { ascending: false }),
+      const [accountsResult, categoriesResult, monthEntriesResult, balanceEntriesResult, goalsResult] = await Promise.all([
+        supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
+        supabase.from("categories").select(categoryColumns).eq("is_active", true).order("name"),
+        supabase.from("financial_entries").select(entryColumns).gte("due_date", startDate).lte("due_date", endDate).order("due_date", { ascending: false }),
+        supabase.from("financial_entries").select(balanceEntryColumns).eq("status", "paid").order("due_date", { ascending: false }),
+        supabase.from("savings_goals").select(goalColumns).eq("is_active", true).order("created_at", { ascending: false }).limit(1),
       ]);
 
-      const requestError = accountsResult.error ?? categoriesResult.error ?? monthEntriesResult.error ?? balanceEntriesResult.error;
+      const requestError = accountsResult.error ?? categoriesResult.error ?? monthEntriesResult.error ?? balanceEntriesResult.error ?? goalsResult.error;
       if (requestError) {
         setError(requestError.message);
       }
@@ -69,6 +77,7 @@ function DashboardPage() {
       setCategories(categoriesResult.data ?? []);
       setMonthEntries(monthEntriesResult.data ?? []);
       setBalanceEntries(balanceEntriesResult.data ?? []);
+      setGoals(goalsResult.data ?? []);
       setLoading(false);
     };
 
@@ -83,6 +92,8 @@ function DashboardPage() {
   const accountBalances = accountBalancesFromEntries(selectedAccounts, filteredBalanceEntries);
   const categoryExpenses = expensesByCategoryProgress(filteredMonthEntries, categories, user.id);
   const recentEntries = latestEntries(filteredMonthEntries, 5);
+  const activeGoal = activeSavingsGoal(goals);
+  const goalProgress = activeGoal && activeGoal.monthly_target > 0 ? Math.max(0, Math.min(100, (summary.actualBalance / Number(activeGoal.monthly_target)) * 100)) : 0;
   const hasEntries = filteredMonthEntries.length > 0;
   const { year, month } = parseMonthKey(selectedMonth);
   const monthTitle = monthLabel(year, month);
@@ -101,8 +112,8 @@ function DashboardPage() {
               <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">Acompanhe saldo disponível, entradas, saídas, contas e classificações do período selecionado.</p>
               <div className="mt-5 grid gap-3 sm:max-w-2xl sm:grid-cols-[auto_1fr] sm:items-end">
                 <div className="flex gap-2">
-                  <Button type="button" variant="outline" className="h-11 bg-white text-slate-950 hover:bg-cyan-50" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>Anterior</Button>
-                  <Button type="button" variant="outline" className="h-11 bg-white text-slate-950 hover:bg-cyan-50" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>Próximo</Button>
+                  <Button type="button" variant="outline" className="h-11 bg-white text-slate-950 hover:bg-slate-100" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>Anterior</Button>
+                  <Button type="button" variant="outline" className="h-11 bg-white text-slate-950 hover:bg-slate-100" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>Próximo</Button>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
@@ -167,6 +178,21 @@ function DashboardPage() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <CardTitle>Resumo do planejamento</CardTitle>
+                    <CardDescription>Previsto vs realizado do mês e progresso da meta de economia.</CardDescription>
+                  </div>
+                  <Link to="/planejamento" className="rounded-xl bg-slate-950 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-800">Abrir planejamento</Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <PlanningSummaryChart summary={summary} activeGoal={activeGoal} goalProgress={goalProgress} />
+              </CardContent>
+            </Card>
 
             <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
               <Card>
@@ -258,7 +284,6 @@ function MetricCard({ title, value, tone, helper }: { title: string; value: numb
 }
 
 function BarsChart({ expectedIncome, actualIncome, expectedExpenses, actualExpenses }: { expectedIncome: number; actualIncome: number; expectedExpenses: number; actualExpenses: number }) {
-  const max = Math.max(expectedIncome, actualIncome, expectedExpenses, actualExpenses, 1);
   const rows = [
     { label: "Entradas", expected: expectedIncome, actual: actualIncome, trackClassName: "bg-emerald-100", fillClassName: "bg-emerald-600" },
     { label: "Saídas", expected: expectedExpenses, actual: actualExpenses, trackClassName: "bg-red-100", fillClassName: "bg-red-600" },
@@ -276,8 +301,8 @@ function BarsChart({ expectedIncome, actualIncome, expectedExpenses, actualExpen
             </span>
           </div>
           <div className="h-12 overflow-hidden rounded-2xl bg-slate-100">
-            <div className={`relative h-full rounded-2xl ${row.trackClassName}`} style={{ width: `${Math.max((row.expected / max) * 100, row.expected > 0 ? 8 : 0)}%` }}>
-              <div className={`absolute inset-y-0 left-0 rounded-2xl ${row.fillClassName}`} style={{ width: `${Math.max(row.expected > 0 ? (row.actual / row.expected) * 100 : 0, row.actual > 0 ? 8 : 0)}%` }} />
+            <div className={`relative h-full rounded-2xl ${row.trackClassName}`} style={{ width: `${row.expected > 0 ? 100 : 0}%` }}>
+              <div className={`absolute inset-y-0 left-0 rounded-2xl ${row.fillClassName}`} style={{ width: `${row.expected > 0 ? Math.min(100, Math.max((row.actual / row.expected) * 100, row.actual > 0 ? 8 : 0)) : row.actual > 0 ? 100 : 0}%` }} />
             </div>
           </div>
         </div>
@@ -336,6 +361,83 @@ function DonutChart({ rows }: { rows: Array<{ id: string; name: string; expected
           </div>
         ))}
         {rows.length === 0 ? <p className="text-sm text-slate-500">Nenhum gasto para agrupar neste mês.</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function PlanningSummaryChart({ summary, activeGoal, goalProgress }: { summary: ReturnType<typeof summarizeEntries>; activeGoal: SavingsGoal | null; goalProgress: number }) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr] lg:items-stretch">
+      <div className="rounded-2xl bg-slate-950 p-4 text-white">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold">Planejado vs realizado</p>
+            <p className="mt-1 text-xs text-slate-300">Comparativo do mês selecionado.</p>
+          </div>
+          <p className={summary.actualBalance < 0 ? "text-right text-sm font-bold text-red-300" : "text-right text-sm font-bold text-emerald-300"}>{formatCurrency(summary.actualBalance)}</p>
+        </div>
+        <div className="grid gap-4">
+          <MiniPlanningBar label="Entradas" planned={summary.expectedIncome} actual={summary.actualIncome} tone="emerald" />
+          <MiniPlanningBar label="Saídas" planned={summary.expectedExpenses} actual={summary.actualExpenses} tone={summary.actualExpenses > summary.expectedExpenses ? "red" : "amber"} />
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        <div className="rounded-2xl bg-slate-100 p-4">
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Saldo esperado</p>
+          <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950">{formatCurrency(summary.expectedBalance)}</p>
+          <p className="mt-1 text-xs text-slate-500">Diferença: {formatCurrency(summary.actualBalance - summary.expectedBalance)}</p>
+        </div>
+        <div className="rounded-2xl bg-cyan-50 p-4 text-cyan-950">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-cyan-700">Meta economia</p>
+              <p className="mt-2 text-xl font-black tracking-[-0.04em]">{activeGoal ? `${goalProgress.toFixed(0)}%` : "Sem meta"}</p>
+            </div>
+            <p className="text-right text-xs text-cyan-700">{activeGoal ? formatCurrency(Number(activeGoal.monthly_target)) : "Cadastre no planejamento"}</p>
+          </div>
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-cyan-200">
+            <div className="h-full rounded-full bg-cyan-700" style={{ width: `${activeGoal ? goalProgress : 0}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniPlanningBar({ label, planned, actual, tone }: { label: string; planned: number; actual: number; tone: "emerald" | "amber" | "red" }) {
+  const trackClassName = {
+    emerald: "bg-emerald-400/20",
+    amber: "bg-amber-400/20",
+    red: "bg-red-400/25",
+  }[tone];
+  const fillClassName = {
+    emerald: "bg-emerald-400",
+    amber: "bg-amber-400",
+    red: "bg-red-400",
+  }[tone];
+  const valueClassName = {
+    emerald: "text-emerald-300",
+    amber: "text-amber-300",
+    red: "text-red-300",
+  }[tone];
+  const plannedWidth = planned > 0 ? 100 : 0;
+  const actualWidth = planned > 0 ? Math.min(100, Math.max((actual / planned) * 100, actual > 0 ? 8 : 0)) : actual > 0 ? 100 : 0;
+
+  return (
+    <div>
+      <div className="mb-2 flex items-end justify-between gap-3 text-sm">
+        <div>
+          <p className="font-medium text-white">{label}</p>
+          <p className="text-xs text-slate-400">Previsto: {formatCurrency(planned)}</p>
+        </div>
+        <p className={`font-black ${valueClassName}`}>{formatCurrency(actual)}</p>
+      </div>
+      <div className="h-9 overflow-hidden rounded-xl bg-white/10 p-1">
+        <div className={`relative h-full rounded-lg ${trackClassName}`} style={{ width: `${plannedWidth}%` }}>
+          <div className={`absolute inset-y-0 left-0 rounded-lg ${fillClassName}`} style={{ width: `${actualWidth}%` }} />
+        </div>
       </div>
     </div>
   );
