@@ -21,7 +21,24 @@ npm install
 npm run dev
 ```
 
-Abra `http://localhost:3000` no navegador.
+Abra a URL informada pelo Vite no terminal. Normalmente:
+
+```text
+http://localhost:5173
+```
+
+Deploy atual:
+
+```text
+https://controle-financeiro-eta-flame.vercel.app/
+```
+
+## Acesso
+
+- Sistema interno para Jonas e Isadora.
+- Usuários são pré-criados no Supabase.
+- Não há criação pública de conta.
+- Não há recuperação pública de senha; alterações são feitas direto no Supabase.
 
 ## Variáveis de Ambiente
 
