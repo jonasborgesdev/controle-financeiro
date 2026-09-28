@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { formatCurrency, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
+import { formatCurrency, isFinanceClassification, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, MonthlyBalance } from "@/types/database";
 
@@ -71,7 +71,7 @@ function EntriesPage() {
 
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
-  const visibleCategories = categories.filter((category) => category.type === form.entry_type && category.is_active && category.parent_id === null);
+  const visibleCategories = categories.filter((category) => category.type === form.entry_type && isFinanceClassification(category, user.id));
   const summary = summarizeEntries(entries);
 
   const loadData = async () => {

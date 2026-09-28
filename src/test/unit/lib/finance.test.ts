@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  accountBalancesFromEntries,
   accountBalanceFromEntries,
   accountProjectedBalanceFromEntries,
   dueDateForMonth,
+  entryDisplayAmount,
   entryActualSignedAmount,
   entryExpectedSignedAmount,
   entryProjectedSignedAmount,
+  expensesByCategory,
+  latestEntries,
+  isFinanceClassification,
+  monthBounds,
   monthKey,
   parseMonthKey,
   recurringRuleAppliesToMonth,
+  shiftMonth,
   summarizeEntries,
 } from "@/lib/finance";
-import type { Account, FinancialEntry, RecurringRule } from "@/types/database";
+import type { Account, Category, FinancialEntry, RecurringRule } from "@/types/database";
 
 const baseEntry: FinancialEntry = {
   id: "entry-1",
@@ -67,10 +74,26 @@ const baseRule: RecurringRule = {
   updated_at: "2026-09-01T00:00:00Z",
 };
 
+const baseCategory: Category = {
+  id: "category-1",
+  user_id: null,
+  name: "Gastos fixos",
+  icon: null,
+  color: "#0891b2",
+  type: "expense",
+  parent_id: null,
+  is_default: true,
+  is_active: true,
+  created_at: "2026-09-01T00:00:00Z",
+};
+
 describe("finance", () => {
   it("monta e interpreta a chave mensal", () => {
     expect(monthKey(2026, 9)).toBe("2026-09");
     expect(parseMonthKey("2026-09")).toEqual({ year: 2026, month: 9 });
+    expect(monthBounds("2026-02")).toEqual({ startDate: "2026-02-01", endDate: "2026-02-28" });
+    expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
   });
 
   it("calcula o valor previsto com sinal por tipo", () => {
@@ -82,6 +105,8 @@ describe("finance", () => {
     expect(entryActualSignedAmount({ ...baseEntry, status: "planned", actual_amount: 900 })).toBe(0);
     expect(entryActualSignedAmount({ ...baseEntry, status: "paid", actual_amount: 900 })).toBe(900);
     expect(entryActualSignedAmount({ ...baseEntry, entry_type: "expense", status: "paid", actual_amount: null, expected_amount: 150 })).toBe(-150);
+    expect(entryDisplayAmount({ ...baseEntry, status: "planned", expected_amount: 500, actual_amount: null })).toBe(500);
+    expect(entryDisplayAmount({ ...baseEntry, status: "paid", expected_amount: 500, actual_amount: 450 })).toBe(450);
   });
 
   it("usa valor real nos realizados e valor previsto nos previstos para projecao", () => {
@@ -141,6 +166,52 @@ describe("finance", () => {
     ];
 
     expect(accountProjectedBalanceFromEntries(baseAccount, entries)).toBe(1530);
+  });
+
+  it("monta saldos por conta para o dashboard", () => {
+    const otherAccount: Account = { ...baseAccount, id: "account-2", name: "Outra conta", initial_balance: 100 };
+    const entries: FinancialEntry[] = [
+      { ...baseEntry, id: "paid-income", status: "paid", actual_amount: 500 },
+      { ...baseEntry, id: "planned-expense", entry_type: "expense", status: "planned", expected_amount: 80 },
+      { ...baseEntry, id: "other-account", account_id: "account-2", status: "paid", actual_amount: 300 },
+    ];
+
+    expect(accountBalancesFromEntries([baseAccount, otherAccount], entries)).toEqual([
+      { account: baseAccount, currentBalance: 750, projectedBalance: 670 },
+      { account: otherAccount, currentBalance: 400, projectedBalance: 400 },
+    ]);
+  });
+
+  it("agrupa gastos por categoria e ordena por maior valor", () => {
+    const entries: FinancialEntry[] = [
+      { ...baseEntry, id: "expense-1", entry_type: "expense", category_id: "category-1", status: "paid", actual_amount: 120 },
+      { ...baseEntry, id: "expense-2", entry_type: "expense", category_id: null, status: "planned", expected_amount: 80 },
+      { ...baseEntry, id: "income-1", entry_type: "income", category_id: "category-1", status: "paid", actual_amount: 500 },
+    ];
+
+    expect(expensesByCategory(entries, [baseCategory])).toEqual([
+      { id: "category-1", name: "Gastos fixos", value: 120, color: "#0891b2" },
+      { id: "sem-categoria", name: "Sem classificação", value: 80, color: null },
+    ]);
+  });
+
+  it("considera apenas classificacoes financeiras atuais e customizadas", () => {
+    const oldDefaultCategory: Category = { ...baseCategory, id: "old", name: "Alimentação", user_id: null };
+    const customCategory: Category = { ...baseCategory, id: "custom", name: "Gastos de casa", user_id: "user-1", is_default: false };
+
+    expect(isFinanceClassification(baseCategory, "user-1")).toBe(true);
+    expect(isFinanceClassification(customCategory, "user-1")).toBe(true);
+    expect(isFinanceClassification(oldDefaultCategory, "user-1")).toBe(false);
+  });
+
+  it("retorna os ultimos lancamentos por vencimento e criacao", () => {
+    const entries: FinancialEntry[] = [
+      { ...baseEntry, id: "old", due_date: "2026-09-01", created_at: "2026-09-01T00:00:00Z" },
+      { ...baseEntry, id: "latest-created", due_date: "2026-09-10", created_at: "2026-09-03T00:00:00Z" },
+      { ...baseEntry, id: "latest-date", due_date: "2026-09-12", created_at: "2026-09-02T00:00:00Z" },
+    ];
+
+    expect(latestEntries(entries, 2).map((entry) => entry.id)).toEqual(["latest-date", "latest-created"]);
   });
 
   it("aplica recorrencia respeitando inicio, fim e ativo", () => {
