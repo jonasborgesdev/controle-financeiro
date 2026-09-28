@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,9 +63,6 @@ function LoginPage() {
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={loading}>{loading ? "Entrando..." : "Entrar"}</Button>
-            <Link to="/forgot-password" className="text-center text-sm text-blue-600 hover:underline">
-              Esqueci minha senha
-            </Link>
           </CardFooter>
         </form>
       </Card>
