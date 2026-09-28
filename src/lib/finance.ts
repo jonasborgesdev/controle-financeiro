@@ -1,4 +1,15 @@
-import type { Account, FinancialEntry, MonthlyBalance, RecurringRule, RecurringTransaction, Transaction } from "@/types/database";
+import type { Account, Category, FinancialEntry, MonthlyBalance, RecurringRule, RecurringTransaction, Transaction } from "@/types/database";
+
+export const defaultExpenseClassifications = new Set(["Gastos fixos", "Gastos variáveis"]);
+export const defaultIncomeClassifications = new Set(["Ganhos fixos", "Ganhos variáveis"]);
+
+export function isFinanceClassification(category: Category, userId: string) {
+  if (!category.is_active || category.parent_id !== null) return false;
+  if (category.user_id === userId) return true;
+  if (category.type === "expense") return defaultExpenseClassifications.has(category.name);
+  if (category.type === "income") return defaultIncomeClassifications.has(category.name);
+  return false;
+}
 
 export function transactionSignedAmount(transaction: Pick<Transaction, "amount" | "type">) {
   if (transaction.type === "expense") return -Number(transaction.amount);
@@ -29,6 +40,21 @@ export function monthLabel(year: number, month: number) {
   return new Date(year, month - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 }
 
+export function monthBounds(month: string) {
+  const { year, month: monthNumber } = parseMonthKey(month);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  return {
+    startDate: `${month}-01`,
+    endDate: `${month}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
+export function shiftMonth(month: string, offset: number) {
+  const { year, month: monthNumber } = parseMonthKey(month);
+  const date = new Date(year, monthNumber - 1 + offset, 1);
+  return monthKey(date.getFullYear(), date.getMonth() + 1);
+}
+
 export function entryExpectedSignedAmount(entry: Pick<FinancialEntry, "entry_type" | "expected_amount" | "status">) {
   return entry.entry_type === "expense" ? -Number(entry.expected_amount) : Number(entry.expected_amount);
 }
@@ -36,6 +62,10 @@ export function entryExpectedSignedAmount(entry: Pick<FinancialEntry, "entry_typ
 export function entryActualAmount(entry: Pick<FinancialEntry, "actual_amount" | "expected_amount" | "status">) {
   if (entry.status !== "paid") return 0;
   return Number(entry.actual_amount ?? entry.expected_amount);
+}
+
+export function entryDisplayAmount(entry: Pick<FinancialEntry, "actual_amount" | "expected_amount" | "status">) {
+  return entry.status === "paid" ? entryActualAmount(entry) : Number(entry.expected_amount);
 }
 
 export function entryActualSignedAmount(entry: Pick<FinancialEntry, "entry_type" | "actual_amount" | "expected_amount" | "status">) {
@@ -76,6 +106,40 @@ export function accountProjectedBalanceFromEntries(account: Account, entries: Fi
   return entries
     .filter((entry) => entry.account_id === account.id)
     .reduce((balance, entry) => balance + entryProjectedSignedAmount(entry), Number(account.initial_balance ?? 0));
+}
+
+export function accountBalancesFromEntries(accounts: Account[], entries: FinancialEntry[]) {
+  return accounts.map((account) => ({
+    account,
+    currentBalance: accountBalanceFromEntries(account, entries),
+    projectedBalance: accountProjectedBalanceFromEntries(account, entries),
+  }));
+}
+
+export function expensesByCategory(entries: FinancialEntry[], categories: Category[]) {
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
+  const totals = entries
+    .filter((entry) => entry.entry_type === "expense")
+    .reduce<Map<string, { id: string; name: string; value: number; color: string | null }>>((map, entry) => {
+      const category = entry.category_id ? categoryById.get(entry.category_id) : null;
+      const id = category?.id ?? "sem-categoria";
+      const current = map.get(id) ?? { id, name: category?.name ?? "Sem classificação", value: 0, color: category?.color ?? null };
+      current.value += entryDisplayAmount(entry);
+      map.set(id, current);
+      return map;
+    }, new Map());
+
+  return Array.from(totals.values()).sort((first, second) => second.value - first.value);
+}
+
+export function latestEntries(entries: FinancialEntry[], limit = 5) {
+  return [...entries]
+    .sort((first, second) => {
+      const dateDiff = new Date(second.due_date).getTime() - new Date(first.due_date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
+    })
+    .slice(0, limit);
 }
 
 export function recurringRuleAppliesToMonth(rule: RecurringRule, year: number, month: number) {

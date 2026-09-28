@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { isFinanceClassification } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
 import type { Category } from "@/types/database";
 
@@ -16,9 +17,6 @@ type CategoryForm = {
 const emptyForm: CategoryForm = {
   name: "",
 };
-
-const featuredExpenseCategories = new Set(["Gastos fixos", "Gastos variáveis"]);
-const featuredIncomeCategories = new Set(["Ganhos fixos", "Ganhos variáveis"]);
 
 export const Route = createFileRoute("/categorias")({
   beforeLoad: async () => {
@@ -122,13 +120,11 @@ function CategoriesPage() {
 
   const expenseCategories = categories.filter((category) => (
     category.type === "expense"
-    && category.parent_id === null
-    && (category.user_id === user.id || featuredExpenseCategories.has(category.name))
+    && isFinanceClassification(category, user.id)
   ));
   const incomeCategories = categories.filter((category) => (
     category.type === "income"
-    && category.parent_id === null
-    && (category.user_id === user.id || featuredIncomeCategories.has(category.name))
+    && isFinanceClassification(category, user.id)
   ));
 
   return (

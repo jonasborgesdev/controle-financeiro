@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { dueDateForMonth, formatCurrency, monthLabel, monthKey, parseMonthKey, recurringRuleAppliesToMonth } from "@/lib/finance";
+import { dueDateForMonth, formatCurrency, isFinanceClassification, monthLabel, monthKey, parseMonthKey, recurringRuleAppliesToMonth } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, MonthlyBalance, RecurringRule } from "@/types/database";
 
@@ -67,7 +67,7 @@ function RecurringRulesPage() {
 
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
-  const visibleCategories = categories.filter((category) => category.type === form.entry_type && category.is_active && category.parent_id === null);
+  const visibleCategories = categories.filter((category) => category.type === form.entry_type && isFinanceClassification(category, user.id));
 
   const loadData = async () => {
     setLoading(true);
