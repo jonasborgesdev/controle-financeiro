@@ -19,6 +19,10 @@
 
 # production
 /build
+/dist
+/.output
+/.tanstack
+/.vinxi
 
 # misc
 .DS_Store

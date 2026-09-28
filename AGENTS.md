@@ -1,9 +1,19 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# Controle Financeiro — Regras do Projeto
 
-# This is NOT the Next.js you know
+## Stack
+- Vite + TanStack Start + TanStack Router.
+- Tailwind CSS v4 + shadcn/ui.
+- Supabase para banco, auth e storage.
+- Vercel para deploy.
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+## Estrutura
+- Rotas ficam em `src/routes/`.
+- `src/routeTree.gen.ts` é gerado automaticamente pelo TanStack Router; não editar manualmente.
+- Configuração do router em `src/router.tsx`.
+- Configuração do Start em `src/start.ts`.
+- Migrations ficam em `supabase/migrations/`.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+## Variáveis de Ambiente
+- Variáveis públicas do frontend devem usar prefixo `VITE_`.
+- Não commitar `.env.local`.
+- Nunca expor `SUPABASE_SERVICE_ROLE_KEY` no frontend.
