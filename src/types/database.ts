@@ -15,6 +15,7 @@ export interface Account {
   type: 'personal' | 'business'
   bank: string | null
   description: string | null
+  initial_balance: number
   is_active: boolean
   color: string | null
   icon: string | null
@@ -24,12 +25,14 @@ export interface Account {
 
 export interface Category {
   id: string
+  user_id: string | null
   name: string
   icon: string | null
   color: string | null
   type: 'income' | 'expense' | 'transfer'
   parent_id: string | null
   is_default: boolean
+  is_active: boolean
   created_at: string
 }
 
@@ -53,29 +56,129 @@ export interface Transaction {
   updated_at: string
 }
 
+export interface RecurringTransaction {
+  id: string
+  user_id: string
+  account_id: string
+  category_id: string | null
+  type: 'income' | 'expense'
+  amount: number
+  description: string
+  day_of_month: number
+  start_date: string
+  end_date: string | null
+  is_active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MonthlyBalance {
+  id: string
+  user_id: string
+  year: number
+  month: number
+  label: string
+  created_at: string
+  updated_at: string
+}
+
+export interface FinancialEntry {
+  id: string
+  user_id: string
+  monthly_balance_id: string
+  account_id: string | null
+  category_id: string | null
+  entry_type: 'income' | 'expense'
+  status: 'planned' | 'paid'
+  description: string
+  expected_amount: number
+  actual_amount: number | null
+  due_date: string
+  paid_date: string | null
+  source: 'manual' | 'recurring' | 'imported' | 'asaas'
+  recurring_rule_id: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface RecurringRule {
+  id: string
+  user_id: string
+  account_id: string | null
+  category_id: string | null
+  entry_type: 'income' | 'expense'
+  description: string
+  amount: number
+  day_of_month: number
+  start_year: number
+  start_month: number
+  end_year: number | null
+  end_month: number | null
+  is_active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
       profiles: {
         Row: Profile
         Insert: Omit<Profile, 'created_at' | 'updated_at'>
-        Update: Partial<Omit<Profile, 'id' | 'created_at' | 'updated_at'>>
+        Update: Partial<Pick<Profile, 'full_name' | 'avatar_url'>>
+        Relationships: []
       }
       accounts: {
         Row: Account
         Insert: Omit<Account, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<Account, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
       }
       categories: {
         Row: Category
         Insert: Omit<Category, 'id' | 'created_at'>
         Update: Partial<Omit<Category, 'id' | 'created_at'>>
+        Relationships: []
       }
       transactions: {
         Row: Transaction
         Insert: Omit<Transaction, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<Transaction, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      recurring_transactions: {
+        Row: RecurringTransaction
+        Insert: Omit<RecurringTransaction, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<RecurringTransaction, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      monthly_balances: {
+        Row: MonthlyBalance
+        Insert: Omit<MonthlyBalance, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<MonthlyBalance, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      financial_entries: {
+        Row: FinancialEntry
+        Insert: Omit<FinancialEntry, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<FinancialEntry, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      recurring_rules: {
+        Row: RecurringRule
+        Insert: Omit<RecurringRule, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<RecurringRule, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
       }
     }
+    Views: Record<string, never>
+    Functions: Record<string, never>
+    Enums: {
+      profile_role: 'admin' | 'user'
+    }
+    CompositeTypes: Record<string, never>
   }
 }
