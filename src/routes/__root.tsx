@@ -13,7 +13,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "Sistema pessoal de controle financeiro para Jonas e Isadora",
       },
     ],
-    links: [{ rel: "stylesheet", href: styles }],
+    links: [
+      { rel: "stylesheet", href: styles },
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
