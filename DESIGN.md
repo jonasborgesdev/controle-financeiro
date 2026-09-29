@@ -31,6 +31,7 @@ O app usa a direção `Private Finance OS`: dark-first, premium, mobile-first e 
 ## Componentes
 
 - Inputs e selects têm altura mínima de 44px, foco cyan visível e fundo escuro.
+- Inputs `date` e `month` precisam respeitar largura fluida no Safari/iOS para não estourar cards ou grids mobile.
 - Selects nativos usam `finance-select` com aparência normalizada para Safari/iOS; se ainda houver inconsistência em aparelho real, evoluir para um componente `Select` próprio.
 - Botão primário emerald; ações de planejamento usam cyan; alertas/metas usam gold; destrutivo usa rose.
 - Cards financeiros importantes exibem valores com peso alto, tracking negativo leve e metadados discretos.

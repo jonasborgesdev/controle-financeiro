@@ -151,6 +151,36 @@
     box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.22);
   }
 
+  input[type="date"],
+  input[type="month"] {
+    min-width: 0;
+    max-width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    color-scheme: dark;
+    font-size: 1rem;
+    line-height: 1.25rem;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="month"]::-webkit-date-and-time-value {
+    min-height: 1.25rem;
+    text-align: left;
+  }
+
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="month"]::-webkit-datetime-edit {
+    min-width: 0;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator {
+    margin-left: 0.25rem;
+    opacity: 0.75;
+    filter: invert(1);
+  }
+
   .safe-pb {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
