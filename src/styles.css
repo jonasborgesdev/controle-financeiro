@@ -123,7 +123,7 @@
   }
 
   .finance-select {
-    min-height: 3rem;
+    min-height: 3.25rem;
     width: 100%;
     -webkit-appearance: none;
     appearance: none;
@@ -153,6 +153,7 @@
 
   input[type="date"],
   input[type="month"] {
+    min-height: 3.25rem;
     min-width: 0;
     max-width: 100%;
     -webkit-appearance: none;
