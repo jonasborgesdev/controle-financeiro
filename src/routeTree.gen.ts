@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CategoriasRouteImport } from './routes/categorias'
 import { Route as ContasRouteImport } from './routes/contas'
+import { Route as ImportacaoRouteImport } from './routes/importacao'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as RecorrenciasRouteImport } from './routes/recorrencias'
@@ -30,6 +31,11 @@ const CategoriasRoute = CategoriasRouteImport.update({
 const ContasRoute = ContasRouteImport.update({
   id: '/contas',
   path: '/contas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImportacaoRoute = ImportacaoRouteImport.update({
+  id: '/importacao',
+  path: '/importacao',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/categorias': typeof CategoriasRoute
   '/contas': typeof ContasRoute
+  '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recorrencias': typeof RecorrenciasRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/categorias': typeof CategoriasRoute
   '/contas': typeof ContasRoute
+  '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recorrencias': typeof RecorrenciasRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/categorias': typeof CategoriasRoute
   '/contas': typeof ContasRoute
+  '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recorrencias': typeof RecorrenciasRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/categorias'
     | '/contas'
+    | '/importacao'
     | '/login'
     | '/planejamento'
     | '/recorrencias'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/categorias'
     | '/contas'
+    | '/importacao'
     | '/login'
     | '/planejamento'
     | '/recorrencias'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/categorias'
     | '/contas'
+    | '/importacao'
     | '/login'
     | '/planejamento'
     | '/recorrencias'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CategoriasRoute: typeof CategoriasRoute
   ContasRoute: typeof ContasRoute
+  ImportacaoRoute: typeof ImportacaoRoute
   LoginRoute: typeof LoginRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
   RecorrenciasRoute: typeof RecorrenciasRoute
@@ -142,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/contas'
       fullPath: '/contas'
       preLoaderRoute: typeof ContasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/importacao': {
+      id: '/importacao'
+      path: '/importacao'
+      fullPath: '/importacao'
+      preLoaderRoute: typeof ImportacaoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CategoriasRoute: CategoriasRoute,
   ContasRoute: ContasRoute,
+  ImportacaoRoute: ImportacaoRoute,
   LoginRoute: LoginRoute,
   PlanejamentoRoute: PlanejamentoRoute,
   RecorrenciasRoute: RecorrenciasRoute,

@@ -30,6 +30,7 @@
     "cn": "^0.3.0",
     "lucide-react": "^1.46.0",
     "nitro": "npm:nitro-nightly@^3.0.1-20260928-103646-f72e2ba6",
+    "pdfjs-dist": "^6.3.289",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "shadcn": "^4.21.0",

@@ -146,6 +146,22 @@ export interface SavingsGoal {
   updated_at: string
 }
 
+export interface ImportHistory {
+  id: string
+  user_id: string
+  account_id: string | null
+  filename: string
+  file_type: 'csv' | 'ofx' | 'pdf'
+  bank: string
+  total_transactions: number
+  imported_transactions: number
+  duplicated_transactions: number
+  ignored_transactions: number
+  status: 'processing' | 'completed' | 'error'
+  error_message: string | null
+  created_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -207,6 +223,12 @@ export interface Database {
         Row: SavingsGoal
         Insert: Omit<SavingsGoal, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<SavingsGoal, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      import_history: {
+        Row: ImportHistory
+        Insert: Omit<ImportHistory, 'id' | 'created_at'>
+        Update: Partial<Omit<ImportHistory, 'id' | 'created_at'>>
         Relationships: []
       }
     }

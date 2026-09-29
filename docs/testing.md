@@ -21,6 +21,13 @@ src/test/
 e2e/           # testes E2E com Playwright
 ```
 
+## Cobertura da Semana 5
+
+- `src/test/unit/lib/importer.test.ts`: cobre CSV, OFX, PDF Nubank, PDF tabular genérico, PDF com texto quebrado em caracteres e detecção de duplicatas.
+- `src/test/unit/lib/pdf.test.ts`: cobre reconstrução de texto tabular do PDF por posição dos itens antes do parser financeiro.
+- `src/test/integration/monthly-finance-flow.test.ts`: cobre importação PDF no modelo mensal com `monthly_balances`, `financial_entries` e `import_history`.
+- `e2e/importacao-authenticated.spec.ts`: cobre o fluxo real pela UI com upload, revisão, importação, histórico e gravação no banco.
+
 ## Regra de seguranca
 
 Por padrao, testes unitarios e de tela nao acessam o Supabase real. Quando criarmos testes de integracao com banco, eles devem usar usuarios descartaveis com prefixo `it-` ou `e2e-` e nunca apagar dados reais do Jonas/Isadora.
