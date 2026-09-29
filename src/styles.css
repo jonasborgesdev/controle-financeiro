@@ -123,16 +123,27 @@
   }
 
   .finance-select {
-    min-height: 2.75rem;
+    min-height: 3rem;
     width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
     border-radius: 0.9rem;
     border: 1px solid rgba(148, 163, 184, 0.22);
-    background: rgba(2, 6, 23, 0.72);
-    padding: 0 0.8rem;
+    background-color: rgba(2, 6, 23, 0.72);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%2394A3B8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-position: right 0.85rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25rem;
+    padding: 0 2.75rem 0 0.9rem;
     color: #f8fafc;
-    font-size: 0.95rem;
+    font-size: 1rem;
+    line-height: 1.25rem;
     outline: none;
     transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  }
+
+  .finance-select::-ms-expand {
+    display: none;
   }
 
   .finance-select:focus-visible {
