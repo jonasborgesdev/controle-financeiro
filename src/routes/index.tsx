@@ -20,15 +20,16 @@ import {
   summarizeEntries,
 } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
-import type { Account, Category, FinancialEntry, SavingsGoal } from "@/types/database";
+import type { Account, Category, FinancialEntry, IntegrationSetting, SavingsGoal } from "@/types/database";
 
 const currentMonth = new Date().toISOString().slice(0, 7);
 const chartColors = ["#22d3ee", "#10b981", "#f5c76b", "#fb7185", "#38bdf8", "#94a3b8"];
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
-const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,notes,created_at,updated_at";
-const balanceEntryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,notes,created_at,updated_at";
+const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
+const balanceEntryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
 const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
+const settingsColumns = "id,user_id,provider,enabled,environment,default_account_id,default_category_id,last_sync_at,created_at,updated_at";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
@@ -51,6 +52,7 @@ function DashboardPage() {
   const [monthEntries, setMonthEntries] = useState<FinancialEntry[]>([]);
   const [balanceEntries, setBalanceEntries] = useState<FinancialEntry[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [asaasSettings, setAsaasSettings] = useState<IntegrationSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,15 +62,16 @@ function DashboardPage() {
       setLoading(true);
       setError(null);
       const { startDate, endDate } = monthBounds(selectedMonth);
-      const [accountsResult, categoriesResult, monthEntriesResult, balanceEntriesResult, goalsResult] = await Promise.all([
+      const [accountsResult, categoriesResult, monthEntriesResult, balanceEntriesResult, goalsResult, asaasSettingsResult] = await Promise.all([
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).eq("is_active", true).order("name"),
         supabase.from("financial_entries").select(entryColumns).gte("due_date", startDate).lte("due_date", endDate).order("due_date", { ascending: false }),
         supabase.from("financial_entries").select(balanceEntryColumns).eq("status", "paid").order("due_date", { ascending: false }),
         supabase.from("savings_goals").select(goalColumns).eq("is_active", true).order("created_at", { ascending: false }).limit(1),
+        supabase.from("integration_settings").select(settingsColumns).eq("provider", "asaas").maybeSingle(),
       ]);
 
-      const requestError = accountsResult.error ?? categoriesResult.error ?? monthEntriesResult.error ?? balanceEntriesResult.error ?? goalsResult.error;
+      const requestError = accountsResult.error ?? categoriesResult.error ?? monthEntriesResult.error ?? balanceEntriesResult.error ?? goalsResult.error ?? asaasSettingsResult.error;
       if (requestError) {
         setError(requestError.message);
       }
@@ -78,6 +81,7 @@ function DashboardPage() {
       setMonthEntries(monthEntriesResult.data ?? []);
       setBalanceEntries(balanceEntriesResult.data ?? []);
       setGoals(goalsResult.data ?? []);
+      setAsaasSettings(asaasSettingsResult.data as IntegrationSetting | null);
       setLoading(false);
     };
 
@@ -252,9 +256,10 @@ function DashboardPage() {
                 <CardDescription>Atalhos para operar o controle financeiro sem sair do fluxo.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
                   <Link to="/transacoes" className="rounded-2xl bg-emerald-400 px-4 py-3 text-center text-sm font-semibold text-[#02140f] transition hover:bg-emerald-300">Nova transação</Link>
                   <Link to="/importacao" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Importar extrato</Link>
+                  {asaasSettings?.enabled ? <Link to="/asaas" className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.10] px-4 py-3 text-center text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.16]">Sincronizar Asaas</Link> : null}
                   <button type="button" disabled className="rounded-2xl border border-dashed border-[#f5c76b]/25 bg-[#f5c76b]/[0.06] px-4 py-3 text-sm font-semibold text-[#f5c76b]/60">Ver relatório em breve</button>
                 </div>
               </CardContent>

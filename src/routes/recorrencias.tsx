@@ -135,6 +135,7 @@ function RecurringRulesPage() {
         paid_date: null,
         source: "recurring" as const,
         recurring_rule_id: rule.id,
+        external_id: null,
         notes: rule.notes,
       });
     }

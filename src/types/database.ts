@@ -98,6 +98,7 @@ export interface FinancialEntry {
   paid_date: string | null
   source: 'manual' | 'recurring' | 'imported' | 'asaas'
   recurring_rule_id: string | null
+  external_id: string | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -157,6 +158,35 @@ export interface ImportHistory {
   imported_transactions: number
   duplicated_transactions: number
   ignored_transactions: number
+  status: 'processing' | 'completed' | 'error'
+  error_message: string | null
+  created_at: string
+}
+
+export interface IntegrationSetting {
+  id: string
+  user_id: string
+  provider: 'asaas'
+  enabled: boolean
+  environment: 'sandbox' | 'production'
+  default_account_id: string | null
+  default_category_id: string | null
+  last_sync_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface IntegrationSyncHistory {
+  id: string
+  user_id: string
+  provider: 'asaas'
+  environment: 'sandbox' | 'production'
+  period_start: string
+  period_end: string
+  total_found: number
+  imported_count: number
+  duplicated_count: number
+  ignored_count: number
   status: 'processing' | 'completed' | 'error'
   error_message: string | null
   created_at: string
@@ -229,6 +259,18 @@ export interface Database {
         Row: ImportHistory
         Insert: Omit<ImportHistory, 'id' | 'created_at'>
         Update: Partial<Omit<ImportHistory, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      integration_settings: {
+        Row: IntegrationSetting
+        Insert: Omit<IntegrationSetting, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<IntegrationSetting, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      integration_sync_history: {
+        Row: IntegrationSyncHistory
+        Insert: Omit<IntegrationSyncHistory, 'id' | 'created_at'>
+        Update: Partial<Omit<IntegrationSyncHistory, 'id' | 'created_at'>>
         Relationships: []
       }
     }
