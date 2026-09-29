@@ -192,3 +192,75 @@
     padding-top: max(0.75rem, env(safe-area-inset-top));
   }
 }
+
+@media print {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  aside,
+  nav,
+  header,
+  .print-hidden {
+    display: none !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .finance-glass,
+  .finance-glass-strong,
+  .finance-panel,
+  .print-card,
+  [class*="bg-white/"],
+  [class*="bg-slate-950"] {
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .report-print-area {
+    color: #0f172a !important;
+  }
+
+  .report-print-area * {
+    color: #0f172a !important;
+  }
+
+  .report-print-area .text-emerald-300,
+  .report-print-area .text-emerald-200 {
+    color: #047857 !important;
+  }
+
+  .report-print-area .text-rose-300,
+  .report-print-area .text-rose-200 {
+    color: #be123c !important;
+  }
+
+  .report-print-area .text-cyan-300,
+  .report-print-area .text-cyan-200 {
+    color: #0e7490 !important;
+  }
+
+  .report-print-area table tr,
+  .report-print-area .border,
+  .report-print-area [class*="border-"] {
+    border-color: #cbd5e1 !important;
+  }
+
+  .report-print-area section,
+  .report-print-area article,
+  .report-print-area div {
+    break-inside: avoid;
+  }
+}
