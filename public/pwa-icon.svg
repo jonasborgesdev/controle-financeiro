@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Controle Financeiro">
+  <rect width="512" height="512" rx="116" fill="#070A0F"/>
+  <circle cx="164" cy="124" r="132" fill="#10B981" opacity="0.20"/>
+  <circle cx="380" cy="126" r="140" fill="#22D3EE" opacity="0.16"/>
+  <rect x="96" y="122" width="320" height="268" rx="54" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.18)" stroke-width="8"/>
+  <path d="M162 282c38 36 78 48 120 34 34-11 57-36 74-74" fill="none" stroke="#10B981" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M156 220h200" stroke="#F8FAFC" stroke-width="22" stroke-linecap="round" opacity="0.88"/>
+  <path d="M156 166h124" stroke="#F5C76B" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="356" cy="166" r="17" fill="#22D3EE"/>
+</svg>

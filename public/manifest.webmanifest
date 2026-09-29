@@ -1,0 +1,19 @@
+{
+  "name": "Controle Financeiro",
+  "short_name": "Financeiro",
+  "description": "Controle financeiro mensal privado para Jonas e Isadora.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#070A0F",
+  "background_color": "#070A0F",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
