@@ -48,7 +48,22 @@ Use `.env.example` como base:
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+
+# Asaas opcional. Server-only: nunca usar prefixo VITE_.
+ASAAS_API_KEY=
+ASAAS_ENVIRONMENT=sandbox
 ```
+
+Para produção do Asaas, use `ASAAS_ENVIRONMENT=production` e configure a chave de produção no servidor/Vercel.
+
+## Integração Asaas
+
+- A integração é opcional e configurada em `/configuracoes`.
+- A sincronização manual fica em `/asaas`.
+- A API key fica apenas no servidor em `ASAAS_API_KEY`.
+- Pagamentos `RECEIVED` e `CONFIRMED` são importados como entradas realizadas após revisão.
+- O valor usado no lançamento é o líquido (`netValue`); o valor bruto fica nas observações.
+- Webhook/cron não foram implementados nesta etapa.
 
 ## Scripts
 
