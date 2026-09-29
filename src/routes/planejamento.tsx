@@ -215,25 +215,25 @@ function PlanningPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="overflow-hidden rounded-[2rem] bg-slate-950 p-5 text-white shadow-2xl shadow-slate-950/20 sm:p-8">
+        <section className="finance-glass-strong overflow-hidden rounded-[2rem] p-5 text-white sm:p-8">
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <p className="text-sm font-medium text-cyan-300">Planejamento mensal</p>
+              <p className="text-sm font-medium text-cyan-200">Planejamento mensal</p>
               <h2 className="mt-2 max-w-2xl text-3xl font-black tracking-[-0.05em] sm:text-5xl">Previsto, realizado e orçamento no mesmo lugar.</h2>
               <p className="mt-3 max-w-xl text-sm text-slate-300">Use os fixos para gerar o mês, confirme o que virou real e acompanhe limites por classificação.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-end">
               <div className="flex gap-2">
-                <Button type="button" variant="outline" className="h-11 bg-white text-slate-950 hover:bg-slate-100" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>Anterior</Button>
-                <Button type="button" variant="outline" className="h-11 bg-white text-slate-950 hover:bg-slate-100" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>Próximo</Button>
+                <Button type="button" variant="outline" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>Anterior</Button>
+                <Button type="button" variant="outline" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>Próximo</Button>
               </div>
-              <Input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="h-11 border-white/20 bg-white text-slate-950" />
+              <Input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} />
             </div>
           </div>
         </section>
 
-        {error ? <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-        {loading ? <p className="text-sm text-slate-500">Carregando planejamento...</p> : null}
+        {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/[0.10] p-4 text-sm text-rose-100">{error}</div> : null}
+        {loading ? <p className="text-sm text-slate-400">Carregando planejamento...</p> : null}
 
         {!loading ? (
           <>
@@ -249,31 +249,31 @@ function PlanningPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button type="button" onClick={generateMonthEntries} disabled={saving}>{saving ? "Gerando..." : "Gerar/aplicar mês"}</Button>
-                      <Link to="/recorrencias" className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-50">Gerenciar fixos</Link>
+                      <Link to="/recorrencias" className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.10]">Gerenciar fixos</Link>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-3">
                     {recurringEntries.map((entry) => (
-                      <div key={entry.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div key={entry.id} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-semibold text-slate-950">{entry.description}</p>
-                              <span className={entry.entry_type === "income" ? "rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700" : "rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700"}>{entry.entry_type === "income" ? "Entrada" : "Saída"}</span>
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{entry.status === "paid" ? "Realizado" : "Previsto"}</span>
+                              <p className="font-semibold text-slate-50">{entry.description}</p>
+                              <span className={entry.entry_type === "income" ? "rounded-full bg-emerald-400/12 px-2 py-0.5 text-xs text-emerald-200" : "rounded-full bg-rose-400/12 px-2 py-0.5 text-xs text-rose-200"}>{entry.entry_type === "income" ? "Entrada" : "Saída"}</span>
+                              <span className="rounded-full bg-[#f5c76b]/15 px-2 py-0.5 text-xs text-[#f5c76b]">{entry.status === "paid" ? "Realizado" : "Previsto"}</span>
                             </div>
-                            <p className="mt-1 text-sm text-slate-500">{new Date(`${entry.due_date}T00:00:00`).toLocaleDateString("pt-BR")} · {entry.account_id ? accountById.get(entry.account_id)?.name ?? "Conta" : "Sem conta"} · {entry.category_id ? categoryById.get(entry.category_id)?.name ?? "Classificação" : "Sem classificação"}</p>
+                            <p className="mt-1 text-sm text-slate-400">{new Date(`${entry.due_date}T00:00:00`).toLocaleDateString("pt-BR")} · {entry.account_id ? accountById.get(entry.account_id)?.name ?? "Conta" : "Sem conta"} · {entry.category_id ? categoryById.get(entry.category_id)?.name ?? "Classificação" : "Sem classificação"}</p>
                           </div>
                           <div className="flex items-center justify-between gap-3 sm:justify-end">
-                            <p className={entry.entry_type === "income" ? "font-bold text-emerald-600" : "font-bold text-red-600"}>{formatCurrency(Number(entry.expected_amount))}</p>
+                            <p className={entry.entry_type === "income" ? "font-bold text-emerald-300" : "font-bold text-rose-300"}>{formatCurrency(Number(entry.expected_amount))}</p>
                             {entry.status === "planned" ? <Button type="button" variant="outline" onClick={() => confirmEntry(entry)} disabled={saving}>Confirmar</Button> : null}
                           </div>
                         </div>
                       </div>
                     ))}
-                    {recurringEntries.length === 0 ? <p className="text-sm text-slate-500">Nenhum fixo gerado neste mês. Clique em gerar/aplicar para criar os previstos sem duplicar.</p> : null}
+                    {recurringEntries.length === 0 ? <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Nenhum fixo gerado neste mês. Clique em gerar/aplicar para criar os previstos sem duplicar.</p> : null}
                   </div>
                 </CardContent>
               </Card>
@@ -292,15 +292,15 @@ function PlanningPage() {
                   {activeGoal ? (
                     <div className="space-y-4">
                       <div>
-                        <p className="font-semibold text-slate-950">{activeGoal.name}</p>
-                        <p className="mt-1 text-sm text-slate-500">Meta mensal: {formatCurrency(Number(activeGoal.monthly_target))}</p>
+                        <p className="font-semibold text-slate-50">{activeGoal.name}</p>
+                        <p className="mt-1 text-sm text-slate-400">Meta mensal: {formatCurrency(Number(activeGoal.monthly_target))}</p>
                       </div>
-                      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${goalProgress}%` }} />
+                      <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                        <div className="h-full rounded-full bg-[#f5c76b]" style={{ width: `${goalProgress}%` }} />
                       </div>
-                      <p className="text-sm text-slate-600">Saldo realizado: <strong>{formatCurrency(summary.actualBalance)}</strong> · Progresso: {goalProgress.toFixed(0)}%</p>
+                      <p className="text-sm text-slate-300">Saldo realizado: <strong>{formatCurrency(summary.actualBalance)}</strong> · Progresso: {goalProgress.toFixed(0)}%</p>
                     </div>
-                  ) : <p className="text-sm text-slate-500">Nenhuma meta ativa cadastrada. Sugestão inicial: guardar R$ 50 por mês.</p>}
+                  ) : <p className="text-sm text-slate-400">Nenhuma meta ativa cadastrada. Sugestão inicial: guardar R$ 50 por mês.</p>}
                 </CardContent>
               </Card>
             </div>
@@ -316,17 +316,17 @@ function PlanningPage() {
                     const row = plannedRows.find((item) => item.category.id === category.id);
                     const tone = budgetTone(row?.percent ?? 0);
                     return (
-                      <div key={category.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div key={category.id} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
                         <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-semibold text-slate-950">{category.name}</p>
+                              <p className="font-semibold text-slate-50">{category.name}</p>
                               <span className={toneClass(tone)}>{toneLabel(tone)}</span>
                             </div>
-                            <p className="mt-1 text-sm text-slate-500">Realizado: {formatCurrency(row?.actual ?? 0)} · Diferença: {formatCurrency(row?.difference ?? Number(budgetDrafts[category.id] || 0))}</p>
+                            <p className="mt-1 text-sm text-slate-400">Realizado: {formatCurrency(row?.actual ?? 0)} · Diferença: {formatCurrency(row?.difference ?? Number(budgetDrafts[category.id] || 0))}</p>
                           </div>
                           <div className="grid gap-2 sm:grid-cols-[10rem_auto]">
-                            <Input type="number" min="0" step="0.01" placeholder="Valor planejado" value={budgetDrafts[category.id] ?? ""} onChange={(event) => setBudgetDrafts({ ...budgetDrafts, [category.id]: event.target.value })} />
+                            <Input type="number" min="0" step="0.01" inputMode="decimal" placeholder="Valor planejado" value={budgetDrafts[category.id] ?? ""} onChange={(event) => setBudgetDrafts({ ...budgetDrafts, [category.id]: event.target.value })} />
                             <Button type="button" variant="outline" onClick={() => saveBudget(category)}>Salvar</Button>
                           </div>
                         </div>
@@ -344,8 +344,8 @@ function PlanningPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3">
-                  {alerts.map((alert) => <div key={alert} className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">{alert}</div>)}
-                  {alerts.length === 0 ? <div className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800">Sem alertas críticos neste mês.</div> : null}
+                  {alerts.map((alert) => <div key={alert} className="rounded-2xl border border-[#f5c76b]/20 bg-[#f5c76b]/[0.08] p-4 text-sm text-[#fff3c4]">{alert}</div>)}
+                  {alerts.length === 0 ? <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] p-4 text-sm text-emerald-100">Sem alertas críticos neste mês.</div> : null}
                 </div>
               </CardContent>
             </Card>
@@ -362,15 +362,15 @@ function PlanningPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="goal-target">Meta total</Label>
-              <Input id="goal-target" type="number" min="0" step="0.01" value={goalForm.target_amount} onChange={(event) => setGoalForm({ ...goalForm, target_amount: event.target.value })} required />
+              <Input id="goal-target" type="number" min="0" step="0.01" inputMode="decimal" value={goalForm.target_amount} onChange={(event) => setGoalForm({ ...goalForm, target_amount: event.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="goal-current">Acumulado</Label>
-              <Input id="goal-current" type="number" min="0" step="0.01" value={goalForm.current_amount} onChange={(event) => setGoalForm({ ...goalForm, current_amount: event.target.value })} />
+              <Input id="goal-current" type="number" min="0" step="0.01" inputMode="decimal" value={goalForm.current_amount} onChange={(event) => setGoalForm({ ...goalForm, current_amount: event.target.value })} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="goal-monthly">Meta mensal</Label>
-              <Input id="goal-monthly" type="number" min="0" step="0.01" value={goalForm.monthly_target} onChange={(event) => setGoalForm({ ...goalForm, monthly_target: event.target.value })} required />
+              <Input id="goal-monthly" type="number" min="0" step="0.01" inputMode="decimal" value={goalForm.monthly_target} onChange={(event) => setGoalForm({ ...goalForm, monthly_target: event.target.value })} required />
             </div>
           </div>
           <div className="space-y-2">
@@ -389,10 +389,10 @@ function PlanningOverview({ summary, goal }: { summary: ReturnType<typeof summar
   const expenseProgress = percentOf(summary.actualExpenses, summary.expectedExpenses);
   const goalTarget = Number(goal?.monthly_target ?? 0);
   const goalProgress = goalTarget > 0 ? Math.max(0, Math.min(100, (summary.actualBalance / goalTarget) * 100)) : 0;
-  const balanceTone = summary.actualBalance < 0 ? "text-red-300" : summary.actualBalance >= summary.expectedBalance ? "text-emerald-300" : "text-cyan-300";
+  const balanceTone = summary.actualBalance < 0 ? "text-rose-300" : summary.actualBalance >= summary.expectedBalance ? "text-emerald-300" : "text-cyan-300";
 
   return (
-    <Card className="overflow-hidden border-0 bg-slate-950 text-white shadow-2xl shadow-slate-950/20">
+    <Card className="overflow-hidden border-white/10 bg-slate-950/70 text-white shadow-2xl shadow-slate-950/20">
       <CardContent className="p-0">
         <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-6 p-5 sm:p-6">
@@ -424,23 +424,23 @@ function PlanningOverview({ summary, goal }: { summary: ReturnType<typeof summar
             </div>
           </div>
 
-          <div className="bg-white p-5 text-slate-950 sm:p-6 lg:rounded-l-[2rem]">
+          <div className="border-t border-white/10 bg-white/[0.05] p-5 text-slate-50 sm:p-6 lg:rounded-l-[2rem] lg:border-l lg:border-t-0">
             <div className="grid h-full content-between gap-6">
               <div>
-                <p className="text-sm font-medium text-slate-500">Saldo esperado vs realizado</p>
+                <p className="text-sm font-medium text-slate-400">Saldo esperado vs realizado</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-100 p-4">
-                    <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Esperado</p>
-                    <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-950">{formatCurrency(summary.expectedBalance)}</p>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+                    <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-400">Esperado</p>
+                    <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-slate-50">{formatCurrency(summary.expectedBalance)}</p>
                   </div>
-                  <div className={summary.actualBalance < 0 ? "rounded-2xl bg-red-50 p-4" : "rounded-2xl bg-emerald-50 p-4"}>
-                    <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Realizado</p>
-                    <p className={summary.actualBalance < 0 ? "mt-2 text-2xl font-black tracking-[-0.04em] text-red-700" : "mt-2 text-2xl font-black tracking-[-0.04em] text-emerald-700"}>{formatCurrency(summary.actualBalance)}</p>
+                  <div className={summary.actualBalance < 0 ? "rounded-2xl border border-rose-300/20 bg-rose-400/[0.08] p-4" : "rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] p-4"}>
+                    <p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-400">Realizado</p>
+                    <p className={summary.actualBalance < 0 ? "mt-2 text-2xl font-black tracking-[-0.04em] text-rose-300" : "mt-2 text-2xl font-black tracking-[-0.04em] text-emerald-300"}>{formatCurrency(summary.actualBalance)}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-slate-950 p-4 text-white">
+              <div className="rounded-2xl border border-[#f5c76b]/20 bg-[#f5c76b]/[0.08] p-4 text-white">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-white">Meta de economia</p>
@@ -449,7 +449,7 @@ function PlanningOverview({ summary, goal }: { summary: ReturnType<typeof summar
                   <p className={`text-lg font-black ${balanceTone}`}>{goal ? `${goalProgress.toFixed(0)}%` : "-"}</p>
                 </div>
                 <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full bg-cyan-300" style={{ width: `${goal ? goalProgress : 0}%` }} />
+                  <div className="h-full rounded-full bg-[#f5c76b]" style={{ width: `${goal ? goalProgress : 0}%` }} />
                 </div>
               </div>
             </div>
@@ -501,9 +501,9 @@ function buildAlerts(summary: ReturnType<typeof summarizeEntries>, budgetRows: R
 
 function toneClass(tone: "emerald" | "amber" | "red") {
   return {
-    emerald: "rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700",
-    amber: "rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700",
-    red: "rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700",
+    emerald: "rounded-full bg-emerald-400/12 px-2 py-0.5 text-xs text-emerald-200",
+    amber: "rounded-full bg-[#f5c76b]/15 px-2 py-0.5 text-xs text-[#f5c76b]",
+    red: "rounded-full bg-rose-400/12 px-2 py-0.5 text-xs text-rose-200",
   }[tone];
 }
 

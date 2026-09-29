@@ -130,16 +130,16 @@ function CategoriesPage() {
   return (
     <AppShell>
       <div className="space-y-5">
-        <section className="rounded-[2rem] bg-slate-950 p-5 text-white shadow-2xl shadow-slate-950/20 sm:p-8">
+        <section className="finance-glass-strong rounded-[2rem] p-5 text-white sm:p-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-cyan-300">Classificação financeira</p>
+              <p className="text-sm font-medium text-cyan-200">Classificação financeira</p>
               <h2 className="mt-2 text-3xl font-black tracking-[-0.05em] sm:text-5xl">Fixo ou variável, sem complicar.</h2>
               <p className="mt-3 max-w-xl text-sm text-slate-300">Use classificações amplas, como Ganhos fixos, Ganhos variáveis, Gastos fixos e Gastos variáveis.</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button type="button" onClick={() => openNewCategory("income")}>Nova classificação de ganho</Button>
-              <Button type="button" variant="outline" className="bg-white text-cyan-950 hover:bg-cyan-50" onClick={() => openNewCategory("expense")}>Nova classificação de gasto</Button>
+              <Button type="button" variant="outline" onClick={() => openNewCategory("expense")}>Nova classificação de gasto</Button>
             </div>
           </div>
         </section>
@@ -150,10 +150,10 @@ function CategoriesPage() {
             <CardDescription>{incomeCategories.length} classificação(ões) ativa(s)</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? <p className="text-sm text-gray-500">Carregando...</p> : null}
+            {loading ? <p className="text-sm text-slate-400">Carregando...</p> : null}
             <div className="grid gap-3">
               {incomeCategories.map((category) => <CategoryCard key={category.id} category={category} label="Ganho" onEdit={editCategory} onDeactivate={deactivateCategory} />)}
-              {!loading && incomeCategories.length === 0 ? <p className="text-sm text-gray-500">Nenhuma classificação de ganho cadastrada.</p> : null}
+              {!loading && incomeCategories.length === 0 ? <p className="text-sm text-slate-400">Nenhuma classificação de ganho cadastrada.</p> : null}
             </div>
           </CardContent>
         </Card>
@@ -164,10 +164,10 @@ function CategoriesPage() {
             <CardDescription>{expenseCategories.length} classificação(ões) ativa(s)</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? <p className="text-sm text-gray-500">Carregando...</p> : null}
+            {loading ? <p className="text-sm text-slate-400">Carregando...</p> : null}
             <div className="grid gap-3">
               {expenseCategories.map((category) => <CategoryCard key={category.id} category={category} label="Gasto" onEdit={editCategory} onDeactivate={deactivateCategory} />)}
-              {!loading && expenseCategories.length === 0 ? <p className="text-sm text-gray-500">Nenhuma classificação de gasto cadastrada.</p> : null}
+              {!loading && expenseCategories.length === 0 ? <p className="text-sm text-slate-400">Nenhuma classificação de gasto cadastrada.</p> : null}
             </div>
           </CardContent>
         </Card>
@@ -175,7 +175,7 @@ function CategoriesPage() {
 
         <Modal title={editingId ? "Editar classificação" : `Nova classificação de ${classificationType === "income" ? "ganho" : "gasto"}`} description={`Crie classificações amplas para ${classificationType === "income" ? "ganhos" : "gastos"}, como ${classificationType === "income" ? "Ganhos fixos" : "Gastos fixos"}.`} open={modalOpen} onClose={() => setModalOpen(false)}>
           <form className="space-y-4" onSubmit={handleSubmit}>
-            {error ? <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+            {error ? <div className="rounded-lg border border-rose-300/20 bg-rose-400/[0.10] p-3 text-sm text-rose-100">{error}</div> : null}
             <div className="space-y-2">
               <Label htmlFor="name">Nome</Label>
               <Input id="name" placeholder={classificationType === "income" ? "Ex.: Ganhos fixos" : "Ex.: Gastos fixos"} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
@@ -190,15 +190,15 @@ function CategoriesPage() {
 
 function CategoryCard({ category, label, onEdit, onDeactivate }: { category: Category; label: "Ganho" | "Gasto"; onEdit: (category: Category) => void; onDeactivate: (category: Category) => void }) {
   return (
-    <div className="rounded-xl border bg-white p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-gray-950">{category.name}</h3>
-          <p className="mt-1 text-sm text-gray-500">{label}</p>
-          {category.is_default ? <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Padrão</span> : null}
+    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 sm:p-4">
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-slate-50">{category.name}</h3>
+          <p className="mt-1 text-sm text-slate-400">{label}</p>
+          {category.is_default ? <span className="mt-2 inline-flex rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-300">Padrão</span> : null}
         </div>
         {!category.is_default ? (
-          <div className="flex shrink-0 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
             <Button type="button" variant="outline" onClick={() => onEdit(category)}>Editar</Button>
             <Button type="button" variant="destructive" onClick={() => onDeactivate(category)}>Desativar</Button>
           </div>

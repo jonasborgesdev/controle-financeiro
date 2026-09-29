@@ -33,26 +33,37 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.985 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.961 0 0);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.961 0 0);
-  --muted-foreground: oklch(0.554 0 0);
-  --accent: oklch(0.961 0 0);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.915 0 0);
-  --input: oklch(0.915 0 0);
-  --ring: oklch(0.704 0.04 256.788);
+  color-scheme: dark;
+  --radius: 1rem;
+  --background: #070a0f;
+  --foreground: #f8fafc;
+  --card: #111827;
+  --card-foreground: #f8fafc;
+  --popover: #0d111a;
+  --popover-foreground: #f8fafc;
+  --primary: #10b981;
+  --primary-foreground: #020617;
+  --secondary: rgba(255, 255, 255, 0.08);
+  --secondary-foreground: #f8fafc;
+  --muted: rgba(255, 255, 255, 0.08);
+  --muted-foreground: #94a3b8;
+  --accent: rgba(34, 211, 238, 0.14);
+  --accent-foreground: #a5f3fc;
+  --destructive: #fb7185;
+  --destructive-foreground: #fff1f2;
+  --border: rgba(148, 163, 184, 0.18);
+  --input: rgba(255, 255, 255, 0.10);
+  --ring: #22d3ee;
+  --finance-bg: #070a0f;
+  --finance-bg-soft: #0d111a;
+  --finance-surface: #111827;
+  --finance-glass: rgba(255, 255, 255, 0.06);
+  --finance-glass-strong: rgba(255, 255, 255, 0.10);
+  --finance-border: rgba(255, 255, 255, 0.10);
+  --finance-emerald: #10b981;
+  --finance-cyan: #22d3ee;
+  --finance-gold: #f5c76b;
+  --finance-rose: #fb7185;
 }
 
 @layer base {
@@ -66,10 +77,74 @@
     min-height: 100%;
   }
 
+  html {
+    background: #070a0f;
+    scroll-behavior: smooth;
+  }
+
   body {
-    background: var(--background);
+    background:
+      radial-gradient(circle at 16% 0%, rgba(16, 185, 129, 0.16), transparent 24rem),
+      radial-gradient(circle at 84% 12%, rgba(34, 211, 238, 0.13), transparent 26rem),
+      linear-gradient(180deg, #070a0f 0%, #0a1018 48%, #070a0f 100%);
     color: var(--foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgba(34, 211, 238, 0.35);
+    color: #f8fafc;
+  }
+}
+
+@layer components {
+  .finance-glass {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+  }
+
+  .finance-glass-strong {
+    background: rgba(255, 255, 255, 0.10);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 32px 100px rgba(0, 0, 0, 0.42);
+    -webkit-backdrop-filter: blur(28px);
+    backdrop-filter: blur(28px);
+  }
+
+  .finance-panel {
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: linear-gradient(180deg, rgba(17, 24, 39, 0.92), rgba(13, 17, 26, 0.88));
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  }
+
+  .finance-select {
+    min-height: 2.75rem;
+    width: 100%;
+    border-radius: 0.9rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(2, 6, 23, 0.72);
+    padding: 0 0.8rem;
+    color: #f8fafc;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  }
+
+  .finance-select:focus-visible {
+    border-color: #22d3ee;
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.22);
+  }
+
+  .safe-pb {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .safe-pt {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
   }
 }

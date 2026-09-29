@@ -218,18 +218,18 @@ function EntriesPage() {
   return (
     <AppShell>
       <div className="space-y-5">
-        <section className="overflow-hidden rounded-[2rem] bg-slate-950 p-5 text-white shadow-2xl shadow-slate-950/20 sm:p-8">
+        <section className="finance-glass-strong overflow-hidden rounded-[2rem] p-5 text-white sm:p-8">
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <p className="text-sm font-medium text-cyan-300">Ganhos e gastos</p>
+              <p className="text-sm font-medium text-cyan-200">Ganhos e gastos</p>
               <h2 className="mt-2 text-3xl font-black tracking-[-0.05em] sm:text-5xl">Lançamentos por competência.</h2>
               <p className="mt-3 max-w-xl text-sm text-slate-300">Cada item tem valor previsto, status e valor real, igual ao seu controle no Notion.</p>
             </div>
-            <div className="rounded-[1.5rem] bg-white p-3 text-slate-950 shadow-2xl lg:min-w-80">
+            <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/65 p-3 text-slate-50 shadow-2xl lg:min-w-80">
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] lg:grid-cols-1">
                 <div>
-                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" htmlFor="entries-month">Mês de competência</label>
-                  <Input id="entries-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="h-11 bg-slate-50 text-slate-950" />
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400" htmlFor="entries-month">Mês de competência</label>
+                  <Input id="entries-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} />
                 </div>
                 <Button type="button" className="h-11 sm:self-end" onClick={() => openNewEntry()}>Novo lançamento</Button>
               </div>
@@ -245,8 +245,8 @@ function EntriesPage() {
             <CardDescription>{entries.length} ganho(s)/gasto(s) no mês selecionado</CardDescription>
           </CardHeader>
           <CardContent>
-            {error ? <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
-            {loading ? <p className="text-sm text-slate-500">Carregando...</p> : null}
+            {error ? <div className="mb-4 rounded-xl border border-rose-300/20 bg-rose-400/[0.10] p-3 text-sm text-rose-100">{error}</div> : null}
+            {loading ? <p className="text-sm text-slate-400">Carregando lançamentos...</p> : null}
             <div className="grid gap-5">
               <EntryGroup
                 title="Ganhos"
@@ -274,7 +274,7 @@ function EntriesPage() {
                 onEdit={openEdit}
                 onDelete={deleteEntry}
               />
-              {!loading && entries.length === 0 ? <p className="text-sm text-slate-500">Nenhum lançamento neste mês.</p> : null}
+              {!loading && entries.length === 0 ? <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Você ainda não lançou nada neste mês. Use o botão de novo lançamento para começar.</p> : null}
             </div>
           </CardContent>
         </Card>
@@ -285,14 +285,14 @@ function EntriesPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="entry-type">Tipo</Label>
-              <select id="entry-type" className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" value={form.entry_type} onChange={(event) => setForm({ ...form, entry_type: event.target.value as EntryForm["entry_type"], category_id: "" })}>
+              <select id="entry-type" className="finance-select" value={form.entry_type} onChange={(event) => setForm({ ...form, entry_type: event.target.value as EntryForm["entry_type"], category_id: "" })}>
                 <option value="income">Ganho</option>
                 <option value="expense">Gasto</option>
               </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
-              <select id="status" className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as EntryForm["status"] })}>
+              <select id="status" className="finance-select" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as EntryForm["status"] })}>
                 <option value="planned">Previsto</option>
                 <option value="paid">Realizado</option>
               </select>
@@ -305,11 +305,11 @@ function EntriesPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="expected">Valor previsto</Label>
-              <Input id="expected" type="number" min="0" step="0.01" value={form.expected_amount} onChange={(event) => setForm({ ...form, expected_amount: event.target.value })} required />
+              <Input id="expected" type="number" min="0" step="0.01" inputMode="decimal" value={form.expected_amount} onChange={(event) => setForm({ ...form, expected_amount: event.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="actual">Valor real</Label>
-              <Input id="actual" type="number" min="0" step="0.01" value={form.actual_amount} onChange={(event) => setForm({ ...form, actual_amount: event.target.value })} disabled={form.status !== "paid"} />
+              <Input id="actual" type="number" min="0" step="0.01" inputMode="decimal" value={form.actual_amount} onChange={(event) => setForm({ ...form, actual_amount: event.target.value })} disabled={form.status !== "paid"} />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -325,14 +325,14 @@ function EntriesPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="account">Conta</Label>
-              <select id="account" className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" value={form.account_id} onChange={(event) => setForm({ ...form, account_id: event.target.value })}>
+              <select id="account" className="finance-select" value={form.account_id} onChange={(event) => setForm({ ...form, account_id: event.target.value })}>
                 <option value="">Sem conta</option>
                 {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="category">Categoria</Label>
-              <select id="category" className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })}>
+              <select id="category" className="finance-select" value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })}>
                 <option value="">Sem categoria</option>
                 {visibleCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select>
@@ -377,15 +377,15 @@ function SummaryCharts({ summary }: { summary: ReturnType<typeof summarizeEntrie
 
 function SummaryBarCard({ title, plannedLabel, actualLabel, planned, actual, tone }: { title: string; plannedLabel: string; actualLabel: string; planned: number; actual: number; tone: "income" | "expense" | "danger" }) {
   const palette = {
-    income: { card: "bg-emerald-50", text: "text-emerald-900", muted: "text-emerald-700", track: "bg-emerald-200", fill: "bg-emerald-600" },
-    expense: { card: "bg-red-50", text: "text-red-900", muted: "text-red-700", track: "bg-red-200", fill: "bg-red-600" },
-    danger: { card: "bg-amber-50", text: "text-amber-900", muted: "text-amber-700", track: "bg-amber-200", fill: "bg-red-600" },
+    income: { card: "border-emerald-300/18 bg-emerald-400/[0.08]", text: "text-emerald-200", muted: "text-emerald-300", track: "bg-emerald-400/15", fill: "bg-emerald-400" },
+    expense: { card: "border-rose-300/18 bg-rose-400/[0.08]", text: "text-rose-200", muted: "text-rose-300", track: "bg-rose-400/15", fill: "bg-rose-400" },
+    danger: { card: "border-[#f5c76b]/20 bg-[#f5c76b]/[0.08]", text: "text-[#fff3c4]", muted: "text-[#f5c76b]", track: "bg-[#f5c76b]/15", fill: "bg-rose-400" },
   }[tone];
   const plannedWidth = planned > 0 ? 100 : 0;
   const actualWidth = planned > 0 ? Math.min(100, Math.max((actual / planned) * 100, actual > 0 ? 8 : 0)) : actual > 0 ? 100 : 0;
 
   return (
-    <div className={`rounded-2xl p-4 shadow-sm ${palette.card}`}>
+    <div className={`rounded-2xl border p-4 shadow-lg shadow-slate-950/15 ${palette.card}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className={`text-sm font-semibold ${palette.muted}`}>{title}</p>
@@ -393,7 +393,7 @@ function SummaryBarCard({ title, plannedLabel, actualLabel, planned, actual, ton
         </div>
         <p className={`text-right text-xs ${palette.muted}`}>de {formatCurrency(planned)}</p>
       </div>
-      <div className="mt-4 h-9 overflow-hidden rounded-xl bg-white/70 p-1">
+      <div className="mt-4 h-9 overflow-hidden rounded-xl bg-white/10 p-1">
         <div className={`relative h-full rounded-lg ${palette.track}`} style={{ width: `${plannedWidth}%` }}>
           <div className={`absolute inset-y-0 left-0 rounded-lg ${palette.fill}`} style={{ width: `${actualWidth}%` }} />
         </div>
@@ -407,28 +407,28 @@ function SummaryBarCard({ title, plannedLabel, actualLabel, planned, actual, ton
 }
 
 function BalanceBarCard({ planned, actual, max }: { planned: number; actual: number; max: number }) {
-  const actualTone = actual < 0 ? "text-red-700" : "text-cyan-900";
-  const actualFill = actual < 0 ? "bg-red-600" : "bg-cyan-700";
+  const actualTone = actual < 0 ? "text-rose-300" : "text-cyan-200";
+  const actualFill = actual < 0 ? "bg-rose-400" : "bg-cyan-300";
   const plannedWidth = Math.max((Math.abs(planned) / max) * 100, planned !== 0 ? 8 : 0);
   const actualWidth = Math.max((Math.abs(actual) / max) * 100, actual !== 0 ? 8 : 0);
 
   return (
-    <div className="rounded-2xl bg-slate-100 p-4 shadow-sm">
+    <div className="rounded-2xl border border-cyan-300/18 bg-cyan-400/[0.08] p-4 shadow-lg shadow-slate-950/15">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-600">Saldo</p>
+          <p className="text-sm font-semibold text-cyan-200">Saldo</p>
           <p className={`mt-2 text-xl font-black tracking-[-0.04em] ${actualTone}`}>{formatCurrency(actual)}</p>
         </div>
-        <p className="text-right text-xs text-slate-500">previsto {formatCurrency(planned)}</p>
+        <p className="text-right text-xs text-slate-400">previsto {formatCurrency(planned)}</p>
       </div>
       <div className="mt-4 grid gap-2">
         <div>
-          <div className="mb-1 flex justify-between text-xs text-slate-500"><span>Previsto</span><span>{formatCurrency(planned)}</span></div>
-          <div className="h-3 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-slate-500" style={{ width: `${plannedWidth}%` }} /></div>
+          <div className="mb-1 flex justify-between text-xs text-slate-400"><span>Previsto</span><span>{formatCurrency(planned)}</span></div>
+          <div className="h-3 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-slate-400" style={{ width: `${plannedWidth}%` }} /></div>
         </div>
         <div>
-          <div className="mb-1 flex justify-between text-xs text-slate-500"><span>Realizado</span><span>{formatCurrency(actual)}</span></div>
-          <div className="h-3 overflow-hidden rounded-full bg-white"><div className={`h-full rounded-full ${actualFill}`} style={{ width: `${actualWidth}%` }} /></div>
+          <div className="mb-1 flex justify-between text-xs text-slate-400"><span>Realizado</span><span>{formatCurrency(actual)}</span></div>
+          <div className="h-3 overflow-hidden rounded-full bg-white/10"><div className={`h-full rounded-full ${actualFill}`} style={{ width: `${actualWidth}%` }} /></div>
         </div>
       </div>
     </div>
@@ -462,36 +462,47 @@ function EntryGroup({
 }) {
   const totalExpected = entries.reduce((total, entry) => total + Number(entry.expected_amount), 0);
   const totalActual = entries.filter((entry) => entry.status === "paid").reduce((total, entry) => total + Number(entry.actual_amount ?? entry.expected_amount), 0);
-  const wrapperClassName = tone === "income" ? "border-emerald-100 bg-emerald-50/50" : "border-red-100 bg-red-50/50";
-  const valueClassName = tone === "income" ? "text-emerald-700" : "text-red-700";
+  const wrapperClassName = tone === "income" ? "border-emerald-300/18 bg-emerald-400/[0.06]" : "border-rose-300/18 bg-rose-400/[0.06]";
+  const valueClassName = tone === "income" ? "text-emerald-300" : "text-rose-300";
+  const groupedEntries = entries.reduce<Array<{ date: string; items: FinancialEntry[] }>>((groups, entry) => {
+    const current = groups.find((group) => group.date === entry.due_date);
+    if (current) current.items.push(entry);
+    else groups.push({ date: entry.due_date, items: [entry] });
+    return groups;
+  }, []);
 
   return (
-    <section className={`rounded-2xl border p-3 ${wrapperClassName}`}>
+    <section className={`rounded-2xl border p-3 sm:p-4 ${wrapperClassName}`}>
       <div className="mb-3 flex items-start justify-between gap-3 px-1">
         <div>
-          <h3 className="font-bold text-slate-950">{title}</h3>
-          <p className="text-sm text-slate-600">{description}</p>
+          <h3 className="font-bold text-slate-50">{title}</h3>
+          <p className="text-sm text-slate-400">{description}</p>
         </div>
         <div className="text-right">
           <p className={`font-black ${valueClassName}`}>{formatCurrency(totalActual)}</p>
-          <p className="text-xs text-slate-500">de {formatCurrency(totalExpected)}</p>
+          <p className="text-xs text-slate-400">de {formatCurrency(totalExpected)}</p>
         </div>
       </div>
-      <div className="grid gap-3">
-        {entries.map((entry) => (
-          <EntryListItem
-            key={entry.id}
-            entry={entry}
-            tone={tone}
-            accountById={accountById}
-            categoryById={categoryById}
-            saving={saving}
-            onToggleStatus={onToggleStatus}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
+      <div className="grid gap-4">
+        {groupedEntries.map((group) => (
+          <div key={group.date} className="grid gap-2.5">
+            <p className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{new Date(`${group.date}T00:00:00`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "short" })}</p>
+            {group.items.map((entry) => (
+              <EntryListItem
+                key={entry.id}
+                entry={entry}
+                tone={tone}
+                accountById={accountById}
+                categoryById={categoryById}
+                saving={saving}
+                onToggleStatus={onToggleStatus}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            ))}
+          </div>
         ))}
-        {entries.length === 0 ? <p className="rounded-xl bg-white/70 p-3 text-sm text-slate-500">{emptyText}</p> : null}
+        {entries.length === 0 ? <p className="rounded-xl border border-white/10 bg-white/[0.05] p-3 text-sm text-slate-400">{emptyText}</p> : null}
       </div>
     </section>
   );
@@ -518,49 +529,61 @@ function EntryListItem({
 }) {
   const paidTone = tone === "income" ? "emerald" : "red";
   const statusClassName = entry.status === "paid"
-    ? paidTone === "emerald" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-    : "bg-amber-100 text-amber-700";
-  const typeClassName = tone === "income" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700";
+    ? paidTone === "emerald" ? "bg-emerald-400/15 text-emerald-200" : "bg-rose-400/15 text-rose-200"
+    : "bg-[#f5c76b]/15 text-[#f5c76b]";
+  const typeClassName = tone === "income" ? "bg-emerald-400/12 text-emerald-200" : "bg-rose-400/12 text-rose-200";
   const itemClassName = entry.status === "paid"
-    ? paidTone === "emerald" ? "border-emerald-200 bg-emerald-50/60 shadow-emerald-950/5" : "border-red-200 bg-red-50/60 shadow-red-950/5"
-    : "border-white bg-white shadow-slate-950/5";
+    ? paidTone === "emerald" ? "border-emerald-300/18 bg-emerald-400/[0.07] shadow-emerald-950/10" : "border-rose-300/18 bg-rose-400/[0.07] shadow-rose-950/10"
+    : "border-white/10 bg-white/[0.05] shadow-slate-950/15";
   const statusButtonClassName = entry.status === "paid"
     ? paidTone === "emerald"
-      ? "shrink-0 border-emerald-200 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 sm:min-w-36"
-      : "shrink-0 border-red-200 bg-red-100 text-red-800 hover:bg-red-200 sm:min-w-36"
-    : "shrink-0 sm:min-w-36";
+      ? "w-full border-emerald-300/20 bg-emerald-400/12 text-emerald-100 hover:bg-emerald-400/18 sm:w-auto sm:min-w-36"
+      : "w-full border-rose-300/20 bg-rose-400/12 text-rose-100 hover:bg-rose-400/18 sm:w-auto sm:min-w-36"
+    : "w-full sm:w-auto sm:min-w-36";
 
   return (
-    <div className={`rounded-2xl border p-4 shadow-sm ${itemClassName}`}>
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button type="button" variant="outline" onClick={() => onToggleStatus(entry)} disabled={saving} className={statusButtonClassName}>
-              {entry.status === "paid" ? "Voltar previsto" : "Marcar realizado"}
-            </Button>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-semibold text-slate-950">{entry.description}</p>
-                <span className={`rounded-full px-2 py-0.5 text-xs ${statusClassName}`}>{statusLabel[entry.status]}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs ${typeClassName}`}>{entry.entry_type === "income" ? "Ganho" : "Gasto"}</span>
-              </div>
-              <p className="mt-1 text-sm text-slate-500">{new Date(`${entry.due_date}T00:00:00`).toLocaleDateString("pt-BR")} · {entry.account_id ? accountById.get(entry.account_id)?.name ?? "Conta" : "Sem conta"} · {entry.category_id ? categoryById.get(entry.category_id)?.name ?? "Categoria" : "Sem categoria"}</p>
-            </div>
+    <div className={`rounded-2xl border p-3 shadow-sm sm:p-4 ${itemClassName}`}>
+      <div className="grid gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="break-words text-base font-semibold leading-5 text-slate-50">{entry.description}</p>
+            <p className="mt-1 text-sm leading-5 text-slate-400">{entry.account_id ? accountById.get(entry.account_id)?.name ?? "Conta" : "Sem conta"}</p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className={tone === "income" ? "text-lg font-black tracking-[-0.03em] text-emerald-300 sm:text-xl" : "text-lg font-black tracking-[-0.03em] text-rose-300 sm:text-xl"}>{tone === "income" ? "+" : "-"}{formatCurrency(Number(entry.actual_amount ?? entry.expected_amount))}</p>
+            <p className="text-xs text-slate-400">{entry.status === "paid" ? "Realizado" : "Previsto"}</p>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center xl:min-w-[20rem]">
-          <div className="sm:text-right">
-            <p className="font-bold text-slate-950">Previsto: {formatCurrency(Number(entry.expected_amount))}</p>
-            <p className="text-sm text-slate-500">Real: {entry.status === "paid" ? formatCurrency(Number(entry.actual_amount ?? entry.expected_amount)) : "-"}</p>
+
+        <div className="flex flex-wrap gap-2">
+          <span className={`rounded-full px-2 py-1 text-xs ${statusClassName}`}>{statusLabel[entry.status]}</span>
+          <span className={`rounded-full px-2 py-1 text-xs ${typeClassName}`}>{entry.entry_type === "income" ? "Ganho" : "Gasto"}</span>
+          <span className="rounded-full bg-white/[0.06] px-2 py-1 text-xs text-slate-300">{entry.category_id ? categoryById.get(entry.category_id)?.name ?? "Categoria" : "Sem categoria"}</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/30 p-3 text-sm">
+          <div>
+            <p className="text-xs text-slate-500">Valor previsto</p>
+            <p className="font-semibold text-slate-200">Previsto: {formatCurrency(Number(entry.expected_amount))}</p>
           </div>
-          <div className="flex flex-wrap gap-2 sm:justify-end">
-            <Button type="button" variant="outline" size="icon" aria-label={`Editar ${entry.description}`} onClick={() => onEdit(entry)} className="relative group/edit">
+          <div className="text-right">
+            <p className="text-xs text-slate-500">Valor real</p>
+            <p className="font-semibold text-slate-200">Real: {entry.status === "paid" ? formatCurrency(Number(entry.actual_amount ?? entry.expected_amount)) : "-"}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+          <Button type="button" variant="outline" onClick={() => onToggleStatus(entry)} disabled={saving} className={statusButtonClassName}>
+            {entry.status === "paid" ? "Voltar previsto" : "Marcar realizado"}
+          </Button>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+            <Button type="button" variant="outline" aria-label={`Editar ${entry.description}`} onClick={() => onEdit(entry)} className="gap-2">
               <Pencil className="size-4" aria-hidden="true" />
-              <span className="pointer-events-none absolute -top-9 left-1/2 z-10 -translate-x-1/2 rounded-lg bg-slate-950 px-2 py-1 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover/edit:opacity-100 group-focus-visible/edit:opacity-100">Editar</span>
+              Editar
             </Button>
-            <Button type="button" variant="destructive" size="icon" aria-label={`Excluir ${entry.description}`} onClick={() => onDelete(entry)} className="relative group/delete">
+            <Button type="button" variant="destructive" aria-label={`Excluir ${entry.description}`} onClick={() => onDelete(entry)} className="gap-2">
               <Trash2 className="size-4" aria-hidden="true" />
-              <span className="pointer-events-none absolute -top-9 left-1/2 z-10 -translate-x-1/2 rounded-lg bg-slate-950 px-2 py-1 text-xs font-semibold text-white opacity-0 shadow-lg transition group-hover/delete:opacity-100 group-focus-visible/delete:opacity-100">Excluir</span>
+              Excluir
             </Button>
           </div>
         </div>
