@@ -7,6 +7,7 @@ const navItems = [
   { to: "/", label: "Início", icon: Home },
   { to: "/transacoes", label: "Lançamentos", icon: ReceiptText },
   { to: "/planejamento", label: "Planejamento", icon: BarChart3 },
+  { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { to: "/importacao", label: "Importar", icon: Upload },
   { to: "/recorrencias", label: "Recorrências", icon: CalendarClock },
   { to: "/contas", label: "Contas", icon: CreditCard },

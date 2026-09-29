@@ -260,7 +260,7 @@ function DashboardPage() {
                   <Link to="/transacoes" className="rounded-2xl bg-emerald-400 px-4 py-3 text-center text-sm font-semibold text-[#02140f] transition hover:bg-emerald-300">Nova transação</Link>
                   <Link to="/importacao" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Importar extrato</Link>
                   {asaasSettings?.enabled ? <Link to="/asaas" className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.10] px-4 py-3 text-center text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.16]">Sincronizar Asaas</Link> : null}
-                  <button type="button" disabled className="rounded-2xl border border-dashed border-[#f5c76b]/25 bg-[#f5c76b]/[0.06] px-4 py-3 text-sm font-semibold text-[#f5c76b]/60">Ver relatório em breve</button>
+                  <Link to="/relatorios" className="rounded-2xl border border-[#f5c76b]/25 bg-[#f5c76b]/[0.08] px-4 py-3 text-center text-sm font-semibold text-[#f5c76b] transition hover:bg-[#f5c76b]/[0.14]">Ver relatório</Link>
                 </div>
               </CardContent>
             </Card>
