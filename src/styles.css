@@ -123,7 +123,8 @@
   }
 
   .finance-select {
-    min-height: 3.25rem;
+    height: 3.75rem;
+    min-height: 3.75rem;
     width: 100%;
     -webkit-appearance: none;
     appearance: none;
@@ -137,7 +138,7 @@
     padding: 0 2.75rem 0 0.9rem;
     color: #f8fafc;
     font-size: 1rem;
-    line-height: 1.25rem;
+    line-height: 1.5rem;
     outline: none;
     transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
   }
@@ -153,7 +154,8 @@
 
   input[type="date"],
   input[type="month"] {
-    min-height: 3.25rem;
+    height: 3.75rem;
+    min-height: 3.75rem;
     min-width: 0;
     max-width: 100%;
     -webkit-appearance: none;
@@ -161,12 +163,12 @@
     box-sizing: border-box;
     color-scheme: dark;
     font-size: 1rem;
-    line-height: 1.25rem;
+    line-height: 1.5rem;
   }
 
   input[type="date"]::-webkit-date-and-time-value,
   input[type="month"]::-webkit-date-and-time-value {
-    min-height: 1.25rem;
+    min-height: 1.5rem;
     text-align: left;
   }
 
