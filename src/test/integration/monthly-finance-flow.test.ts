@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { accountBalanceFromEntries, accountProjectedBalanceFromEntries, dueDateForMonth, monthLabel, summarizeEntries } from "@/lib/finance";
+import { importSummary, markDuplicates, parseNubankPdfText, suggestCategoryId } from "@/lib/importer";
 import type { Account, FinancialEntry, MonthlyBalance, RecurringRule } from "@/types/database";
 import { createTestUser, deleteTestUser, hasSupabaseTestEnv, signInTestUser } from "./helpers/supabase";
 
@@ -336,5 +337,126 @@ runOrSkip("fluxo financeiro mensal com Supabase", () => {
     expect(error).toBeNull();
     expect(data).toHaveLength(3);
     expect(data?.map((entry) => entry.due_date)).toEqual(["2026-01-31", "2026-02-28", "2026-03-31"]);
+  });
+
+  it("importa extrato PDF Nubank para balanços mensais, lançamentos, histórico e detecta duplicatas", async () => {
+    const { client, user } = await signInTestUser(context!.email, context!.password);
+
+    const { data: account, error: accountError } = await client
+      .from("accounts")
+      .insert({
+        user_id: user.id,
+        name: "Conta IT Nubank PDF",
+        type: "business",
+        bank: "Nubank",
+        description: null,
+        initial_balance: 11.45,
+        is_active: true,
+        color: null,
+        icon: null,
+      })
+      .select("*")
+      .single();
+    expect(accountError).toBeNull();
+
+    const { data: categories, error: categoriesError } = await client
+      .from("categories")
+      .insert([
+        { user_id: user.id, name: "Ganhos PDF Variáveis", type: "income", parent_id: null, icon: null, color: null, is_default: false, is_active: true },
+        { user_id: user.id, name: "Gastos PDF Variáveis", type: "expense", parent_id: null, icon: null, color: null, is_default: false, is_active: true },
+      ])
+      .select("*");
+    expect(categoriesError).toBeNull();
+
+    const pdfText = "05 AGO 2026 Total de entradas + 4.635,00 Transferência recebida pelo Pix AGENCIA WEBNAUTA DIG - 16.658.746/0001-27 - BANCO INTER (0077) Agência: 1 Conta: 5579948-5 4.500,00 Resgate RDB 135,00 Total de saídas - 4.646,45 Aplicação RDB 100,00 Transferência enviada pelo Pix RECEITA FEDERAL - 00.394.460/0058-87 - ITAÚ UNIBANCO S.A. (0341) Agência: 332 Conta: 81010-0 86,05 Compra no débito 43.914.435 GABRIELLA G 95,00 Saldo do dia 0,00 24 AGO 2026 Total de entradas + 85,79 Transferência recebida pelo Pix JONAS BORGES DA SILVA 13423333731 - 26.460.470/0001-21 - ASAAS IP S.A. (0461) Agência: 1 Conta: 860914-2 85,79 Saldo do dia 218,96";
+    const parsed = parseNubankPdfText(pdfText);
+    expect(parsed).toHaveLength(4);
+
+    const reviewItems = parsed.map((transaction) => ({
+      ...transaction,
+      selected: true,
+      accountId: account!.id,
+      categoryId: suggestCategoryId(transaction, categories ?? [], user.id),
+      status: "paid" as const,
+      duplicate: false,
+      duplicateReason: null,
+    }));
+    expect(importSummary(reviewItems)).toMatchObject({ total: 4, income: 2, expense: 2, selected: 4 });
+
+    const balanceByMonth = new Map<string, MonthlyBalance>();
+    for (const month of Array.from(new Set(parsed.map((transaction) => transaction.date.slice(0, 7))))) {
+      const year = Number(month.slice(0, 4));
+      const monthNumber = Number(month.slice(5, 7));
+      const { data: balance, error: balanceError } = await client
+        .from("monthly_balances")
+        .upsert({ user_id: user.id, year, month: monthNumber, label: monthLabel(year, monthNumber) }, { onConflict: "user_id,year,month" })
+        .select("*")
+        .single();
+      expect(balanceError).toBeNull();
+      balanceByMonth.set(month, balance as MonthlyBalance);
+    }
+
+    const rows = parsed.map((transaction) => ({
+      user_id: user.id,
+      monthly_balance_id: balanceByMonth.get(transaction.date.slice(0, 7))!.id,
+      account_id: account!.id,
+      category_id: suggestCategoryId(transaction, categories ?? [], user.id) || null,
+      entry_type: transaction.type,
+      status: "paid" as const,
+      description: transaction.description,
+      expected_amount: transaction.amount,
+      actual_amount: transaction.amount,
+      due_date: transaction.date,
+      paid_date: transaction.date,
+      source: "imported" as const,
+      recurring_rule_id: null,
+      notes: "Importado do extrato PDF Nubank.",
+    }));
+
+    const { error: entriesError } = await client.from("financial_entries").insert(rows);
+    expect(entriesError).toBeNull();
+
+    const { error: historyError } = await client.from("import_history").insert({
+      user_id: user.id,
+      account_id: account!.id,
+      filename: "nubank-pj-agosto-setembro.pdf",
+      file_type: "pdf",
+      bank: "nubank",
+      total_transactions: parsed.length,
+      imported_transactions: parsed.length,
+      duplicated_transactions: 0,
+      ignored_transactions: 0,
+      status: "completed",
+      error_message: null,
+    });
+    expect(historyError).toBeNull();
+
+    const { data: entries, error: selectEntriesError } = await client
+      .from("financial_entries")
+      .select("*")
+      .eq("account_id", account!.id)
+      .eq("source", "imported")
+      .order("due_date");
+    expect(selectEntriesError).toBeNull();
+    expect(entries).toHaveLength(4);
+    expect(entries?.every((entry) => entry.status === "paid" && entry.actual_amount !== null)).toBe(true);
+
+    const augustSummary = summarizeEntries((entries ?? []).filter((entry) => entry.due_date.startsWith("2026-08")) as FinancialEntry[]);
+    expect(augustSummary.actualIncome).toBe(4585.79);
+    expect(augustSummary.actualExpenses).toBe(181.05);
+    expect(accountBalanceFromEntries(account as Account, entries as FinancialEntry[])).toBeCloseTo(4416.19, 2);
+
+    const { data: history, error: selectHistoryError } = await client
+      .from("import_history")
+      .select("*")
+      .eq("account_id", account!.id)
+      .eq("file_type", "pdf")
+      .single();
+    expect(selectHistoryError).toBeNull();
+    expect(history).toMatchObject({ imported_transactions: 4, duplicated_transactions: 0, ignored_transactions: 0, status: "completed" });
+
+    const duplicates = markDuplicates(parsed, entries as FinancialEntry[], account!.id);
+    expect(duplicates).toHaveLength(4);
+    expect(duplicates.every((transaction) => transaction.duplicate && !transaction.selected)).toBe(true);
   });
 });

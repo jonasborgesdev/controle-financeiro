@@ -254,7 +254,7 @@ function DashboardPage() {
               <CardContent>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Link to="/transacoes" className="rounded-2xl bg-emerald-400 px-4 py-3 text-center text-sm font-semibold text-[#02140f] transition hover:bg-emerald-300">Nova transação</Link>
-                  <button type="button" disabled className="rounded-2xl border border-dashed border-cyan-300/25 bg-cyan-400/[0.06] px-4 py-3 text-sm font-semibold text-cyan-200/60">Importar extrato em breve</button>
+                  <Link to="/importacao" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Importar extrato</Link>
                   <button type="button" disabled className="rounded-2xl border border-dashed border-[#f5c76b]/25 bg-[#f5c76b]/[0.06] px-4 py-3 text-sm font-semibold text-[#f5c76b]/60">Ver relatório em breve</button>
                 </div>
               </CardContent>
