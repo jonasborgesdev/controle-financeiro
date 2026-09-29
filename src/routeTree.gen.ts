@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AsaasRouteImport } from './routes/asaas'
 import { Route as CategoriasRouteImport } from './routes/categorias'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ContasRouteImport } from './routes/contas'
 import { Route as ImportacaoRouteImport } from './routes/importacao'
 import { Route as LoginRouteImport } from './routes/login'
@@ -23,9 +25,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AsaasRoute = AsaasRouteImport.update({
+  id: '/asaas',
+  path: '/asaas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CategoriasRoute = CategoriasRouteImport.update({
   id: '/categorias',
   path: '/categorias',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContasRoute = ContasRouteImport.update({
@@ -61,7 +73,9 @@ const TransacoesRoute = TransacoesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/asaas': typeof AsaasRoute
   '/categorias': typeof CategoriasRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/contas': typeof ContasRoute
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
@@ -71,7 +85,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/asaas': typeof AsaasRoute
   '/categorias': typeof CategoriasRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/contas': typeof ContasRoute
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
@@ -82,7 +98,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/asaas': typeof AsaasRoute
   '/categorias': typeof CategoriasRoute
+  '/configuracoes': typeof ConfiguracoesRoute
   '/contas': typeof ContasRoute
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
@@ -94,7 +112,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/asaas'
     | '/categorias'
+    | '/configuracoes'
     | '/contas'
     | '/importacao'
     | '/login'
@@ -104,7 +124,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/asaas'
     | '/categorias'
+    | '/configuracoes'
     | '/contas'
     | '/importacao'
     | '/login'
@@ -114,7 +136,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/asaas'
     | '/categorias'
+    | '/configuracoes'
     | '/contas'
     | '/importacao'
     | '/login'
@@ -125,7 +149,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AsaasRoute: typeof AsaasRoute
   CategoriasRoute: typeof CategoriasRoute
+  ConfiguracoesRoute: typeof ConfiguracoesRoute
   ContasRoute: typeof ContasRoute
   ImportacaoRoute: typeof ImportacaoRoute
   LoginRoute: typeof LoginRoute
@@ -143,11 +169,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/asaas': {
+      id: '/asaas'
+      path: '/asaas'
+      fullPath: '/asaas'
+      preLoaderRoute: typeof AsaasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/categorias': {
       id: '/categorias'
       path: '/categorias'
       fullPath: '/categorias'
       preLoaderRoute: typeof CategoriasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contas': {
@@ -197,7 +237,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AsaasRoute: AsaasRoute,
   CategoriasRoute: CategoriasRoute,
+  ConfiguracoesRoute: ConfiguracoesRoute,
   ContasRoute: ContasRoute,
   ImportacaoRoute: ImportacaoRoute,
   LoginRoute: LoginRoute,

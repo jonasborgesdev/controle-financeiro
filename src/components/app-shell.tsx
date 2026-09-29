@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { BarChart3, CalendarClock, CircleDollarSign, CreditCard, Home, Layers3, Plus, ReceiptText, Sparkles, Upload, X } from "lucide-react";
+import { BarChart3, CalendarClock, CircleDollarSign, CreditCard, Home, Layers3, Plus, ReceiptText, Settings, Sparkles, Upload, X } from "lucide-react";
 import LogoutButton from "@/components/auth/logout-button";
 
 const navItems = [
@@ -11,6 +11,7 @@ const navItems = [
   { to: "/recorrencias", label: "Recorrências", icon: CalendarClock },
   { to: "/contas", label: "Contas", icon: CreditCard },
   { to: "/categorias", label: "Categorias", icon: Layers3 },
+  { to: "/configuracoes", label: "Configurações", icon: Settings },
 ] as const;
 
 const moreItems = navItems.slice(3);
@@ -59,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="mt-auto space-y-4 rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4">
               <div className="flex items-start gap-3">
                 <Sparkles className="mt-0.5 size-4 text-[#f5c76b]" aria-hidden="true" />
-                <p className="text-sm leading-5 text-slate-300">Base pronta para importar extratos com revisão clara na Semana 5.</p>
+                <p className="text-sm leading-5 text-slate-300">Integrações opcionais entram só depois de revisão e sem expor chaves no app.</p>
               </div>
               <LogoutButton />
             </div>

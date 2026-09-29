@@ -200,6 +200,7 @@ function baseEntry(overrides: Partial<FinancialEntry>): FinancialEntry {
     paid_date: "2026-03-15",
     source: "manual",
     recurring_rule_id: null,
+    external_id: null,
     notes: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",

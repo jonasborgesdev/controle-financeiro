@@ -35,6 +35,7 @@ const baseEntry: FinancialEntry = {
   paid_date: null,
   source: "manual",
   status: "planned",
+  external_id: null,
   notes: null,
   created_at: "2026-09-01T00:00:00Z",
   updated_at: "2026-09-01T00:00:00Z",
