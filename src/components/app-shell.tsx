@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Banknote, BarChart3, BrainCircuit, CalendarClock, CircleDollarSign, CreditCard, Home, Layers3, LineChart, Plus, ReceiptText, Settings, Upload, X } from "lucide-react";
+import { Banknote, BarChart3, BrainCircuit, CalendarClock, ChevronRight, CircleDollarSign, CreditCard, Home, Layers3, LineChart, Plus, ReceiptText, Settings, Upload, X } from "lucide-react";
 import LogoutButton from "@/components/auth/logout-button";
 
 const navItems = [
@@ -25,6 +25,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = location.pathname;
   const currentItem = navItems.find((item) => item.to === pathname) ?? navItems[0];
   const [moreOpen, setMoreOpen] = useState(false);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMoreOpen(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [moreOpen]);
 
   return (
     <div className="min-h-screen overflow-hidden text-slate-50">
@@ -107,29 +118,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {moreOpen ? (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm lg:hidden" role="dialog" aria-modal="true" aria-label="Mais opções de navegação">
           <button type="button" className="absolute inset-0 cursor-default" aria-label="Fechar menu" onClick={() => setMoreOpen(false)} />
-          <div className="finance-glass-strong safe-pb absolute inset-x-3 bottom-3 rounded-[2rem] p-4">
-            <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="finance-glass-strong safe-pb absolute inset-x-3 bottom-3 flex max-h-[82vh] flex-col overflow-hidden rounded-[2rem] p-4">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 pb-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Menu completo</p>
-                <h2 className="mt-1 text-xl font-bold tracking-[-0.04em] text-white">Todas as áreas do app</h2>
-                <p className="mt-1 text-sm text-slate-400">Mesmas opções disponíveis no desktop.</p>
+                <h2 className="mt-1 text-lg font-bold tracking-[-0.04em] text-white">Mais opções</h2>
               </div>
-              <button type="button" onClick={() => setMoreOpen(false)} className="grid size-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-200" aria-label="Fechar menu">
+              <button type="button" onClick={() => setMoreOpen(false)} className="grid size-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.06] text-slate-200 transition hover:bg-white/[0.10]" aria-label="Fechar menu">
                 <X className="size-5" aria-hidden="true" />
               </button>
             </div>
-            <div className="grid gap-2">
+            <div className="mt-3 grid min-h-0 gap-1.5 overflow-y-auto pr-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Link key={item.to} to={item.to} onClick={() => setMoreOpen(false)} className="group flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white transition hover:bg-white/[0.10] [&.active]:border-emerald-300/30 [&.active]:bg-white/[0.10]">
+                  <Link key={item.to} to={item.to} onClick={() => setMoreOpen(false)} className="group flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white transition hover:bg-white/[0.10] [&.active]:border-emerald-300/30 [&.active]:bg-white/[0.10]">
                     <span className="flex items-center gap-3">
-                      <span className="grid size-10 place-items-center rounded-xl bg-white/[0.06] text-cyan-100 group-[.active]:bg-emerald-400 group-[.active]:text-[#02140f]">
-                        <Icon className="size-5" aria-hidden="true" />
+                      <span className="grid size-9 place-items-center rounded-xl bg-white/[0.06] text-cyan-100 group-[.active]:bg-emerald-400 group-[.active]:text-[#02140f]">
+                        <Icon className="size-4" aria-hidden="true" />
                       </span>
                       {item.label}
                     </span>
-                    <span className="text-xs text-slate-500">Abrir</span>
+                    <ChevronRight className="size-4 text-slate-500 transition group-hover:text-slate-300" aria-hidden="true" />
                   </Link>
                 );
               })}
