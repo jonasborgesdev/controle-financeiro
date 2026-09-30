@@ -4,10 +4,11 @@ Sistema web mobile-first de controle financeiro pessoal/empresarial.
 
 ## Status Atual
 
+- Semana 6 finalizada: Integração Asaas.
 - Semana 7 finalizada: Dashboard Anual e Relatórios.
-- PR da Semana 7: `#11` — `feat: implementar relatorios financeiros`.
-- Próxima etapa planejada: Semana 7.1 — Financiamentos e Exportação Melhorada.
-- Etapa seguinte: Semana 8 — Integração com IA.
+- Semana 7.1 finalizada: Financiamentos e Exportação Melhorada.
+- PR atual: `#12` — `feat: implementar relatórios e financiamentos`.
+- Próxima etapa planejada: Semana 8 — Integração com IA.
 
 ## Stack
 
@@ -79,7 +80,18 @@ Para produção do Asaas, use `ASAAS_ENVIRONMENT=production` e configure a chave
 - Relatório mensal mostra entradas, saídas, saldo, planejado vs realizado, economia/meta, distribuição por classificação/conta, maiores saídas, entradas principais e lançamentos pendentes.
 - Relatório anual mostra acumulados, evolução mês a mês, tabela mensal, distribuição anual, melhor/pior mês, médias e projeção simples quando há meses futuros planejados.
 - Exportação atual usa `window.print()` com CSS print-friendly, sem dependência extra de PDF.
-- Comparativo com ano anterior e módulo de financiamentos ficaram planejados para a Semana 7.1.
+- Comparativo com ano anterior aparece quando há dados do ano anterior.
+- Parcelas de financiamentos aparecem em seção própria no relatório mensal quando geradas.
+
+## Financiamentos
+
+- A rota principal fica em `/financiamentos`.
+- Financiamentos têm cadastro próprio de contrato, valor original, valor da parcela, total de parcelas, parcelas pagas, dia de vencimento e status.
+- Cada parcela gerada vira lançamento em `financial_entries` com `source = 'financing'`.
+- A descrição da parcela inclui o número atual e total, exemplo: `Parcela 4/24 financiamento: Carro`.
+- Pagamentos permitem ajustar data realizada e valor pago.
+- Pagamento antecipado entra no mês da data de pagamento em `Ganhos/Gastos`, mantendo a competência original da parcela em `installment_year` e `installment_month`.
+- A migration da etapa é `supabase/migrations/202609290004_create_financings.sql`.
 
 ## Scripts
 
