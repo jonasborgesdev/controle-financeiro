@@ -1,3 +1,5 @@
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+
 export interface Profile {
   id: string
   full_name: string | null
@@ -187,7 +189,7 @@ export interface ImportHistory {
 export interface IntegrationSetting {
   id: string
   user_id: string
-  provider: 'asaas'
+  provider: 'asaas' | 'ai'
   enabled: boolean
   environment: 'sandbox' | 'production'
   default_account_id: string | null
@@ -210,6 +212,18 @@ export interface IntegrationSyncHistory {
   ignored_count: number
   status: 'processing' | 'completed' | 'error'
   error_message: string | null
+  created_at: string
+}
+
+export interface AiAnalysis {
+  id: string
+  user_id: string
+  analysis_type: 'monthly' | 'annual' | 'savings' | 'planning'
+  period_start: string
+  period_end: string
+  input_summary: Json
+  ai_response: string
+  model_used: string
   created_at: string
 }
 
@@ -298,6 +312,12 @@ export interface Database {
         Row: IntegrationSyncHistory
         Insert: Omit<IntegrationSyncHistory, 'id' | 'created_at'>
         Update: Partial<Omit<IntegrationSyncHistory, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      ai_analysis: {
+        Row: AiAnalysis
+        Insert: Omit<AiAnalysis, 'id' | 'created_at'>
+        Update: Partial<Omit<AiAnalysis, 'id' | 'created_at'>>
         Relationships: []
       }
     }

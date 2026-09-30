@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
-import { AlertTriangle, CheckCircle2, PlugZap, ShieldCheck } from "lucide-react";
+import { AlertTriangle, BrainCircuit, CheckCircle2, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { testAsaasConnection, type AsaasEnvironment } from "@/lib/asaas";
+import { getAiStatus, testAiConnection } from "@/lib/ai";
 import { isFinanceClassification } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, IntegrationSetting, IntegrationSyncHistory } from "@/types/database";
@@ -31,15 +32,20 @@ function SettingsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<IntegrationSetting | null>(null);
+  const [aiSettings, setAiSettings] = useState<IntegrationSetting | null>(null);
+  const [aiStatus, setAiStatus] = useState<{ enabled: boolean; configured: boolean; provider: string; model: string } | null>(null);
   const [history, setHistory] = useState<IntegrationSyncHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testingAi, setTestingAi] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
   const [environment, setEnvironment] = useState<AsaasEnvironment>("sandbox");
   const [defaultAccountId, setDefaultAccountId] = useState("");
   const [defaultCategoryId, setDefaultCategoryId] = useState("");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [aiConnectionMessage, setAiConnectionMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
   const incomeCategories = useMemo(() => categories.filter((category) => category.type === "income" && isFinanceClassification(category, user.id)), [categories, user.id]);
   const isConfigured = Boolean(settings?.enabled && settings.default_account_id);
@@ -67,6 +73,18 @@ function SettingsPage() {
     setEnvironment(nextSettings?.environment ?? "sandbox");
     setDefaultAccountId(nextSettings?.default_account_id ?? nextAccounts[0]?.id ?? "");
     setDefaultCategoryId(nextSettings?.default_category_id ?? nextCategories.find((category) => category.type === "income" && category.name === "Ganhos variáveis")?.id ?? "");
+    const { data: sessionData } = await supabase.auth.getSession();
+    try {
+      const status = await getAiStatus({ data: { accessToken: sessionData.session?.access_token ?? "" } });
+      const aiSettingsResult = await supabase.from("integration_settings").select(settingsColumns).eq("provider", "ai").maybeSingle();
+      setAiStatus(status);
+      setAiSettings(aiSettingsResult.data as IntegrationSetting | null);
+      setAiEnabled(status.enabled);
+    } catch {
+      setAiStatus(null);
+      setAiSettings(null);
+      setAiEnabled(false);
+    }
     setLoading(false);
   };
 
@@ -107,6 +125,49 @@ function SettingsPage() {
       setMessage({ tone: "error", text: caughtError instanceof Error ? caughtError.message : "Não consegui testar a conexão com o Asaas." });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const saveAiSettings = async () => {
+    setSaving(true);
+    setMessage(null);
+    const payload = {
+      user_id: user.id,
+      provider: "ai" as const,
+      enabled: aiEnabled,
+      environment: "production" as const,
+      default_account_id: null,
+      default_category_id: null,
+      last_sync_at: aiSettings?.last_sync_at ?? null,
+    };
+    const { data, error } = await supabase.from("integration_settings").upsert(payload, { onConflict: "user_id,provider" }).select(settingsColumns).single();
+    if (error) {
+      setMessage({ tone: "error", text: error.message });
+    } else {
+      setAiSettings(data as IntegrationSetting);
+      setMessage({ tone: "success", text: aiEnabled ? "IA ativada. A geração depende da API key configurada no servidor." : "IA desativada. O app segue funcionando sem análises automáticas." });
+      await loadData();
+    }
+    setSaving(false);
+  };
+
+  const testAi = async () => {
+    setTestingAi(true);
+    setMessage(null);
+    setAiConnectionMessage(null);
+    const { data } = await supabase.auth.getSession();
+    try {
+      const result = await testAiConnection({ data: { accessToken: data.session?.access_token ?? "" } });
+      const text = (result as { message?: string }).message ?? "Conexão com IA funcionando.";
+      setAiConnectionMessage({ tone: "success", text });
+      setMessage({ tone: "success", text });
+      await loadData();
+    } catch (caughtError) {
+      const text = caughtError instanceof Error ? caughtError.message : "Não consegui testar a IA.";
+      setAiConnectionMessage({ tone: "error", text });
+      setMessage({ tone: "error", text });
+    } finally {
+      setTestingAi(false);
     }
   };
 
@@ -176,6 +237,40 @@ function SettingsPage() {
               <Button type="button" variant="outline" onClick={testConnection} disabled={testing}>{testing ? "Testando..." : "Testar conexão"}</Button>
               {isConfigured ? <Link to="/asaas" className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.12] px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.18]">Sincronizar agora</Link> : null}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <BrainCircuit className="mt-1 size-5 text-cyan-200" aria-hidden="true" />
+              <div>
+                <CardTitle>IA</CardTitle>
+                <CardDescription>Ative quando `GEMINI_API_KEY` ou `GROQ_API_KEY` estiver configurada no servidor/Vercel.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <label className="flex min-h-14 items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3">
+                <span>
+                  <span className="block font-semibold text-slate-50">Ativar análise inteligente</span>
+                  <span className="text-sm text-slate-400">A IA só lê resumos agregados e não altera dados.</span>
+                </span>
+                <input type="checkbox" checked={aiEnabled} onChange={(event) => setAiEnabled(event.target.checked)} className="size-5 accent-emerald-400" />
+              </label>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-slate-400">Status</p>
+                <p className={aiStatus?.configured ? "mt-1 font-bold text-emerald-300" : "mt-1 font-bold text-rose-300"}>{aiStatus?.configured ? "Configurado" : "Não configurado"}</p>
+                <p className="mt-1 text-sm text-slate-400">{aiStatus ? `${aiStatus.provider} · ${aiStatus.model}` : "Status indisponível"}</p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Button type="button" onClick={saveAiSettings} disabled={saving}>{saving ? "Salvando..." : "Salvar IA"}</Button>
+              <Button type="button" variant="outline" onClick={testAi} disabled={testingAi}>{testingAi ? "Testando..." : "Testar IA"}</Button>
+              {aiStatus?.enabled ? <Link to="/ia" search={{ type: undefined, month: undefined, year: undefined }} className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Abrir análise inteligente</Link> : null}
+            </div>
+            {aiConnectionMessage ? <div className={aiConnectionMessage.tone === "success" ? "mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-400/[0.08] p-4 text-sm text-emerald-100" : "mt-4 rounded-2xl border border-rose-300/20 bg-rose-400/[0.08] p-4 text-sm text-rose-100"}>{aiConnectionMessage.text}</div> : null}
           </CardContent>
         </Card>
 

@@ -21,7 +21,8 @@ import {
 } from "@/lib/finance";
 import { financingNextDueDate, monthlyFinancingCommitment } from "@/lib/financings";
 import { createClient } from "@/lib/supabase/client";
-import type { Account, Category, FinancialEntry, Financing, IntegrationSetting, SavingsGoal } from "@/types/database";
+import { parseAiResponse } from "@/lib/ai";
+import type { Account, AiAnalysis, Category, FinancialEntry, Financing, IntegrationSetting, SavingsGoal } from "@/types/database";
 
 const currentMonth = new Date().toISOString().slice(0, 7);
 const chartColors = ["#22d3ee", "#10b981", "#f5c76b", "#fb7185", "#38bdf8", "#94a3b8"];
@@ -32,6 +33,7 @@ const balanceEntryColumns = entryColumns;
 const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
 const settingsColumns = "id,user_id,provider,enabled,environment,default_account_id,default_category_id,last_sync_at,created_at,updated_at";
 const financingColumns = "id,user_id,account_id,category_id,name,original_amount,installment_amount,total_installments,paid_installments,due_day,start_date,status,notes,created_at,updated_at";
+const aiAnalysisColumns = "id,user_id,analysis_type,period_start,period_end,input_summary,ai_response,model_used,created_at";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
@@ -56,6 +58,8 @@ function DashboardPage() {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [financings, setFinancings] = useState<Financing[]>([]);
   const [asaasSettings, setAsaasSettings] = useState<IntegrationSetting | null>(null);
+  const [aiSettings, setAiSettings] = useState<IntegrationSetting | null>(null);
+  const [latestAiAnalysis, setLatestAiAnalysis] = useState<AiAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +69,7 @@ function DashboardPage() {
       setLoading(true);
       setError(null);
       const { startDate, endDate } = monthBounds(selectedMonth);
-      const [accountsResult, categoriesResult, monthEntriesResult, balanceEntriesResult, goalsResult, financingsResult, asaasSettingsResult] = await Promise.all([
+      const [accountsResult, categoriesResult, monthEntriesResult, balanceEntriesResult, goalsResult, financingsResult, asaasSettingsResult, aiSettingsResult, aiAnalysisResult] = await Promise.all([
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).eq("is_active", true).order("name"),
         supabase.from("financial_entries").select(entryColumns).gte("due_date", startDate).lte("due_date", endDate).order("due_date", { ascending: false }),
@@ -73,6 +77,8 @@ function DashboardPage() {
         supabase.from("savings_goals").select(goalColumns).eq("is_active", true).order("created_at", { ascending: false }).limit(1),
         supabase.from("financings").select(financingColumns).eq("status", "active").order("due_day"),
         supabase.from("integration_settings").select(settingsColumns).eq("provider", "asaas").maybeSingle(),
+        supabase.from("integration_settings").select(settingsColumns).eq("provider", "ai").maybeSingle(),
+        supabase.from("ai_analysis").select(aiAnalysisColumns).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
 
       const requestError = accountsResult.error ?? categoriesResult.error ?? monthEntriesResult.error ?? balanceEntriesResult.error ?? goalsResult.error ?? asaasSettingsResult.error;
@@ -87,6 +93,8 @@ function DashboardPage() {
       setGoals(goalsResult.data ?? []);
       setFinancings(financingsResult.error ? [] : financingsResult.data ?? []);
       setAsaasSettings(asaasSettingsResult.data as IntegrationSetting | null);
+      setAiSettings(aiSettingsResult.data as IntegrationSetting | null);
+      setLatestAiAnalysis(aiAnalysisResult.error ? null : aiAnalysisResult.data as AiAnalysis | null);
       setLoading(false);
     };
 
@@ -226,6 +234,23 @@ function DashboardPage() {
               </Card>
             ) : null}
 
+            {aiSettings?.enabled ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <CardTitle>Insight inteligente</CardTitle>
+                      <CardDescription>{latestAiAnalysis ? "Última análise salva pela IA." : "Gere uma análise automática com dados agregados."}</CardDescription>
+                    </div>
+                    <Link to="/ia" search={{ type: "monthly", month: selectedMonth, year: undefined }} className="rounded-xl bg-cyan-400/12 px-4 py-2 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/18">Analisar mês com IA</Link>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {latestAiAnalysis ? <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm leading-6 text-cyan-100">{parseAiResponse(latestAiAnalysis.ai_response).resumo}</p> : <p className="rounded-2xl border border-dashed border-cyan-300/20 bg-cyan-400/[0.06] p-4 text-sm text-cyan-100">Nenhuma análise gerada ainda. A IA não recebe descrições brutas nem dados sensíveis.</p>}
+                </CardContent>
+              </Card>
+            ) : null}
+
             <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
               <Card>
                 <CardHeader>
@@ -288,6 +313,7 @@ function DashboardPage() {
                   <Link to="/transacoes" className="rounded-2xl bg-emerald-400 px-4 py-3 text-center text-sm font-semibold text-[#02140f] transition hover:bg-emerald-300">Nova transação</Link>
                   <Link to="/importacao" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Importar extrato</Link>
                   {asaasSettings?.enabled ? <Link to="/asaas" className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.10] px-4 py-3 text-center text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.16]">Sincronizar Asaas</Link> : null}
+                  {aiSettings?.enabled ? <Link to="/ia" search={{ type: "monthly", month: selectedMonth, year: undefined }} className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Analisar com IA</Link> : null}
                   <Link to="/relatorios" className="rounded-2xl border border-[#f5c76b]/25 bg-[#f5c76b]/[0.08] px-4 py-3 text-center text-sm font-semibold text-[#f5c76b] transition hover:bg-[#f5c76b]/[0.14]">Ver relatório</Link>
                 </div>
               </CardContent>

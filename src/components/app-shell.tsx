@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Banknote, BarChart3, CalendarClock, CircleDollarSign, CreditCard, Home, Layers3, Plus, ReceiptText, Settings, Sparkles, Upload, X } from "lucide-react";
+import { Banknote, BarChart3, BrainCircuit, CalendarClock, CircleDollarSign, CreditCard, Home, Layers3, Plus, ReceiptText, Settings, Sparkles, Upload, X } from "lucide-react";
 import LogoutButton from "@/components/auth/logout-button";
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { to: "/transacoes", label: "Lançamentos", icon: ReceiptText },
   { to: "/planejamento", label: "Planejamento", icon: BarChart3 },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
+  { to: "/ia", label: "IA", icon: BrainCircuit },
   { to: "/financiamentos", label: "Financiamentos", icon: Banknote },
   { to: "/importacao", label: "Importar", icon: Upload },
   { to: "/recorrencias", label: "Recorrências", icon: CalendarClock },

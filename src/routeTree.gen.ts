@@ -15,6 +15,7 @@ import { Route as CategoriasRouteImport } from './routes/categorias'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ContasRouteImport } from './routes/contas'
 import { Route as FinanciamentosRouteImport } from './routes/financiamentos'
+import { Route as IaRouteImport } from './routes/ia'
 import { Route as ImportacaoRouteImport } from './routes/importacao'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
@@ -50,6 +51,11 @@ const ContasRoute = ContasRouteImport.update({
 const FinanciamentosRoute = FinanciamentosRouteImport.update({
   id: '/financiamentos',
   path: '/financiamentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IaRoute = IaRouteImport.update({
+  id: '/ia',
+  path: '/ia',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImportacaoRoute = ImportacaoRouteImport.update({
@@ -90,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRoute
   '/contas': typeof ContasRoute
   '/financiamentos': typeof FinanciamentosRoute
+  '/ia': typeof IaRoute
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof ConfiguracoesRoute
   '/contas': typeof ContasRoute
   '/financiamentos': typeof FinanciamentosRoute
+  '/ia': typeof IaRoute
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRoute
   '/contas': typeof ContasRoute
   '/financiamentos': typeof FinanciamentosRoute
+  '/ia': typeof IaRoute
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -135,6 +144,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/contas'
     | '/financiamentos'
+    | '/ia'
     | '/importacao'
     | '/login'
     | '/planejamento'
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/contas'
     | '/financiamentos'
+    | '/ia'
     | '/importacao'
     | '/login'
     | '/planejamento'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/contas'
     | '/financiamentos'
+    | '/ia'
     | '/importacao'
     | '/login'
     | '/planejamento'
@@ -178,6 +190,7 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   ContasRoute: typeof ContasRoute
   FinanciamentosRoute: typeof FinanciamentosRoute
+  IaRoute: typeof IaRoute
   ImportacaoRoute: typeof ImportacaoRoute
   LoginRoute: typeof LoginRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
@@ -228,6 +241,13 @@ declare module '@tanstack/react-router' {
       path: '/financiamentos'
       fullPath: '/financiamentos'
       preLoaderRoute: typeof FinanciamentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ia': {
+      id: '/ia'
+      path: '/ia'
+      fullPath: '/ia'
+      preLoaderRoute: typeof IaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/importacao': {
@@ -282,6 +302,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRoute,
   ContasRoute: ContasRoute,
   FinanciamentosRoute: FinanciamentosRoute,
+  IaRoute: IaRoute,
   ImportacaoRoute: ImportacaoRoute,
   LoginRoute: LoginRoute,
   PlanejamentoRoute: PlanejamentoRoute,
