@@ -28,6 +28,7 @@ export function buildMonthlyReport(entries: FinancialEntry[], accounts: Account[
     .sort((first, second) => new Date(first.due_date).getTime() - new Date(second.due_date).getTime());
 
   return {
+    entries,
     summary,
     difference: {
       income: summary.actualIncome - summary.expectedIncome,

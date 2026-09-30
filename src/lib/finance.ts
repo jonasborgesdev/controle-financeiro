@@ -78,6 +78,10 @@ export function entryProjectedSignedAmount(entry: Pick<FinancialEntry, "entry_ty
   return entryExpectedSignedAmount(entry);
 }
 
+export function entryEffectiveDate(entry: Pick<FinancialEntry, "due_date" | "paid_date" | "status">) {
+  return entry.status === "paid" && entry.paid_date ? entry.paid_date : entry.due_date;
+}
+
 export function summarizeEntries(entries: FinancialEntry[]) {
   const expectedIncome = entries.filter((entry) => entry.entry_type === "income").reduce((total, entry) => total + Number(entry.expected_amount), 0);
   const expectedExpenses = entries.filter((entry) => entry.entry_type === "expense").reduce((total, entry) => total + Number(entry.expected_amount), 0);
@@ -167,7 +171,7 @@ export function expensesByCategory(entries: FinancialEntry[], categories: Catego
 export function latestEntries(entries: FinancialEntry[], limit = 5) {
   return [...entries]
     .sort((first, second) => {
-      const dateDiff = new Date(second.due_date).getTime() - new Date(first.due_date).getTime();
+      const dateDiff = new Date(entryEffectiveDate(second)).getTime() - new Date(entryEffectiveDate(first)).getTime();
       if (dateDiff !== 0) return dateDiff;
       return new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
     })

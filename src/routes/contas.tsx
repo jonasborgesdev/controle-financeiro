@@ -51,15 +51,24 @@ function AccountsPage() {
   const loadAccounts = async () => {
     setLoading(true);
     setError(null);
-    const [accountsResult, transactionsResult] = await Promise.all([
-      supabase.from("accounts").select("*").order("is_active", { ascending: false }).order("name"),
-      supabase.from("financial_entries").select("*"),
-    ]);
-    if (accountsResult.error) setError(accountsResult.error.message);
-    if (transactionsResult.error) setError(transactionsResult.error.message);
-    setAccounts(accountsResult.data ?? []);
-    setEntries(transactionsResult.data ?? []);
-    setLoading(false);
+    try {
+      const accountsResult = await supabase.from("accounts").select("*").order("is_active", { ascending: false }).order("name");
+      if (accountsResult.error) {
+        setError(accountsResult.error.message);
+        setAccounts([]);
+      } else {
+        setAccounts(accountsResult.data ?? []);
+      }
+
+      setLoading(false);
+
+      const entriesResult = await supabase.from("financial_entries").select("*");
+      if (entriesResult.error) setError(entriesResult.error.message);
+      else setEntries(entriesResult.data ?? []);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Erro ao carregar contas.");
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { formatCurrency, isFinanceClassification, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
+import { entryEffectiveDate, formatCurrency, isFinanceClassification, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
-import type { Account, Category, FinancialEntry, MonthlyBalance } from "@/types/database";
+import type { Account, Category, FinancialEntry, Financing, MonthlyBalance } from "@/types/database";
 
 type EntryForm = {
   entry_type: "income" | "expense";
@@ -45,7 +45,7 @@ const statusLabel = {
   paid: "Realizado",
 } satisfies Record<EntryForm["status"], string>;
 
-const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
+const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,financing_id,installment_year,installment_month,notes,created_at,updated_at";
 const balanceColumns = "id,user_id,year,month,label,created_at,updated_at";
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
@@ -79,8 +79,8 @@ function EntriesPage() {
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
   const visibleCategories = categories.filter((category) => category.type === form.entry_type && isFinanceClassification(category, user.id));
   const summary = summarizeEntries(entries);
-  const incomeEntries = entries.filter((entry) => entry.entry_type === "income");
-  const expenseEntries = entries.filter((entry) => entry.entry_type === "expense");
+  const incomeEntries = sortEntriesByRecentFirst(entries.filter((entry) => entry.entry_type === "income"));
+  const expenseEntries = sortEntriesByRecentFirst(entries.filter((entry) => entry.entry_type === "expense"));
 
   const loadData = async () => {
     setLoading(true);
@@ -88,21 +88,28 @@ function EntriesPage() {
     const { year, month } = parseMonthKey(selectedMonth);
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
-    const [entriesResult, balancesResult, accountsResult, categoriesResult] = await Promise.all([
-      supabase.from("financial_entries").select(entryColumns).gte("due_date", startDate).lte("due_date", endDate).order("due_date"),
-      supabase.from("monthly_balances").select(balanceColumns).eq("year", year).eq("month", month),
-      supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
-      supabase.from("categories").select(categoryColumns).order("type").order("name"),
-    ]);
+    try {
+      const [entriesResult, balancesResult, accountsResult, categoriesResult] = await Promise.all([
+        supabase.from("financial_entries").select(entryColumns),
+        supabase.from("monthly_balances").select(balanceColumns).eq("year", year).eq("month", month),
+        supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
+        supabase.from("categories").select(categoryColumns).order("type").order("name"),
+      ]);
 
-    if (entriesResult.error) setError(entriesResult.error.message);
-    if (balancesResult.error) setError(balancesResult.error.message);
-    if (accountsResult.error) setError(accountsResult.error.message);
-    if (categoriesResult.error) setError(categoriesResult.error.message);
-    setEntries(entriesResult.data ?? []);
-    setBalances(balancesResult.data ?? []);
-    setAccounts(accountsResult.data ?? []);
-    setCategories(categoriesResult.data ?? []);
+      if (entriesResult.error) setError(entriesResult.error.message);
+      if (balancesResult.error) setError(balancesResult.error.message);
+      if (accountsResult.error) setError(accountsResult.error.message);
+      if (categoriesResult.error) setError(categoriesResult.error.message);
+      setEntries((entriesResult.data ?? []).filter((entry) => {
+        const effectiveDate = entryEffectiveDate(entry);
+        return effectiveDate >= startDate && effectiveDate <= endDate;
+      }));
+      setBalances(balancesResult.data ?? []);
+      setAccounts(accountsResult.data ?? []);
+      setCategories(categoriesResult.data ?? []);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Erro ao carregar lançamentos.");
+    }
     setLoading(false);
   };
 
@@ -161,7 +168,8 @@ function EntriesPage() {
     setError(null);
 
     try {
-      const monthlyBalance = await ensureMonthlyBalance(form.due_date);
+      const effectiveDate = form.status === "paid" ? form.paid_date || form.due_date : form.due_date;
+      const monthlyBalance = await ensureMonthlyBalance(effectiveDate);
       const expectedAmount = Number(form.expected_amount || 0);
       const actualAmount = form.status === "paid" ? Number(form.actual_amount || form.expected_amount || 0) : null;
       const payload = {
@@ -175,7 +183,7 @@ function EntriesPage() {
         expected_amount: expectedAmount,
         actual_amount: actualAmount,
         due_date: form.due_date,
-        paid_date: form.status === "paid" ? form.paid_date || form.due_date : null,
+        paid_date: form.status === "paid" ? effectiveDate : null,
         source: "manual" as const,
         recurring_rule_id: null,
         external_id: null,
@@ -207,11 +215,28 @@ function EntriesPage() {
     setSaving(true);
     setError(null);
     const nextStatus = entry.status === "paid" ? "planned" : "paid";
+    const monthlyBalance = await ensureMonthlyBalance(nextStatus === "paid" ? today : entry.due_date);
     const payload = nextStatus === "paid"
-      ? { status: nextStatus, actual_amount: Number(entry.actual_amount ?? entry.expected_amount), paid_date: today }
-      : { status: nextStatus, actual_amount: null, paid_date: null };
+      ? { status: nextStatus, actual_amount: Number(entry.actual_amount ?? entry.expected_amount), paid_date: today, monthly_balance_id: monthlyBalance.id }
+      : { status: nextStatus, actual_amount: null, paid_date: null, monthly_balance_id: monthlyBalance.id };
     const { error: updateError } = await supabase.from("financial_entries").update(payload).eq("id", entry.id);
     if (updateError) setError(updateError.message);
+    if (!updateError && entry.financing_id) {
+      const { data: financing } = await supabase
+        .from("financings")
+        .select("id,user_id,account_id,category_id,name,original_amount,installment_amount,total_installments,paid_installments,due_day,start_date,status,notes,created_at,updated_at")
+        .eq("id", entry.financing_id)
+        .single();
+      if (financing) {
+        const current = financing as Financing;
+        const paidInstallments = nextStatus === "paid"
+          ? Math.min(current.total_installments, current.paid_installments + 1)
+          : Math.max(0, current.paid_installments - 1);
+        const status = paidInstallments >= current.total_installments ? "finished" : current.status === "finished" ? "active" : current.status;
+        const { error: financingError } = await supabase.from("financings").update({ paid_installments: paidInstallments, status }).eq("id", current.id);
+        if (financingError) setError(financingError.message);
+      }
+    }
     await loadData();
     setSaving(false);
   };
@@ -408,7 +433,7 @@ function SummaryBarCard({ title, plannedLabel, actualLabel, planned, actual, ton
 }
 
 function BalanceBarCard({ planned, actual, max }: { planned: number; actual: number; max: number }) {
-  const actualTone = actual < 0 ? "text-rose-300" : "text-cyan-200";
+  const plannedTone = planned < 0 ? "text-rose-300" : "text-cyan-200";
   const actualFill = actual < 0 ? "bg-rose-400" : "bg-cyan-300";
   const plannedWidth = Math.max((Math.abs(planned) / max) * 100, planned !== 0 ? 8 : 0);
   const actualWidth = Math.max((Math.abs(actual) / max) * 100, actual !== 0 ? 8 : 0);
@@ -417,10 +442,10 @@ function BalanceBarCard({ planned, actual, max }: { planned: number; actual: num
     <div className="rounded-2xl border border-cyan-300/18 bg-cyan-400/[0.08] p-4 shadow-lg shadow-slate-950/15">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-cyan-200">Saldo</p>
-          <p className={`mt-2 text-xl font-black tracking-[-0.04em] ${actualTone}`}>{formatCurrency(actual)}</p>
+          <p className="text-sm font-semibold text-cyan-200">Saldo previsto</p>
+          <p className={`mt-2 text-xl font-black tracking-[-0.04em] ${plannedTone}`}>{formatCurrency(planned)}</p>
         </div>
-        <p className="text-right text-xs text-slate-400">previsto {formatCurrency(planned)}</p>
+        <p className="text-right text-xs text-slate-400">realizado {formatCurrency(actual)}</p>
       </div>
       <div className="mt-4 grid gap-2">
         <div>
@@ -465,10 +490,11 @@ function EntryGroup({
   const totalActual = entries.filter((entry) => entry.status === "paid").reduce((total, entry) => total + Number(entry.actual_amount ?? entry.expected_amount), 0);
   const wrapperClassName = tone === "income" ? "border-emerald-300/18 bg-emerald-400/[0.06]" : "border-rose-300/18 bg-rose-400/[0.06]";
   const valueClassName = tone === "income" ? "text-emerald-300" : "text-rose-300";
-  const groupedEntries = entries.reduce<Array<{ date: string; items: FinancialEntry[] }>>((groups, entry) => {
-    const current = groups.find((group) => group.date === entry.due_date);
+  const groupedEntries = sortEntriesByRecentFirst(entries).reduce<Array<{ date: string; items: FinancialEntry[] }>>((groups, entry) => {
+    const effectiveDate = entryEffectiveDate(entry);
+    const current = groups.find((group) => group.date === effectiveDate);
     if (current) current.items.push(entry);
-    else groups.push({ date: entry.due_date, items: [entry] });
+    else groups.push({ date: effectiveDate, items: [entry] });
     return groups;
   }, []);
 
@@ -507,6 +533,14 @@ function EntryGroup({
       </div>
     </section>
   );
+}
+
+function sortEntriesByRecentFirst(entries: FinancialEntry[]) {
+  return [...entries].sort((first, second) => {
+    const dateDiff = new Date(entryEffectiveDate(second)).getTime() - new Date(entryEffectiveDate(first)).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
+  });
 }
 
 function EntryListItem({

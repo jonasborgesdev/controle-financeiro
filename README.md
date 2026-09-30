@@ -2,6 +2,13 @@
 
 Sistema web mobile-first de controle financeiro pessoal/empresarial.
 
+## Status Atual
+
+- Semana 7 finalizada: Dashboard Anual e Relatórios.
+- PR da Semana 7: `#11` — `feat: implementar relatorios financeiros`.
+- Próxima etapa planejada: Semana 7.1 — Financiamentos e Exportação Melhorada.
+- Etapa seguinte: Semana 8 — Integração com IA.
+
 ## Stack
 
 - Vite
@@ -64,6 +71,15 @@ Para produção do Asaas, use `ASAAS_ENVIRONMENT=production` e configure a chave
 - Pagamentos `RECEIVED` e `CONFIRMED` são importados como entradas realizadas após revisão.
 - O valor usado no lançamento é o líquido (`netValue`); o valor bruto fica nas observações.
 - Webhook/cron não foram implementados nesta etapa.
+
+## Relatórios
+
+- A rota principal fica em `/relatorios`.
+- A tela alterna entre visão mensal e anual.
+- Relatório mensal mostra entradas, saídas, saldo, planejado vs realizado, economia/meta, distribuição por classificação/conta, maiores saídas, entradas principais e lançamentos pendentes.
+- Relatório anual mostra acumulados, evolução mês a mês, tabela mensal, distribuição anual, melhor/pior mês, médias e projeção simples quando há meses futuros planejados.
+- Exportação atual usa `window.print()` com CSS print-friendly, sem dependência extra de PDF.
+- Comparativo com ano anterior e módulo de financiamentos ficaram planejados para a Semana 7.1.
 
 ## Scripts
 

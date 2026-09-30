@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { entryActualAmount, formatCurrency, isFinanceClassification, monthBounds, monthLabel, parseMonthKey, shiftMonth } from "@/lib/finance";
+import { financingEntriesForMonth } from "@/lib/financings";
 import { buildAnnualReport, buildMonthlyReport, type ReportDistributionRow } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, SavingsGoal } from "@/types/database";
@@ -39,6 +40,7 @@ function ReportsPage() {
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
+  const [previousYearEntries, setPreviousYearEntries] = useState<FinancialEntry[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
@@ -55,16 +57,19 @@ function ReportsPage() {
         ? monthBounds(selectedMonth)
         : { startDate: `${selectedYear}-01-01`, endDate: `${selectedYear}-12-31` };
 
-      const [entriesResult, accountsResult, categoriesResult, goalsResult] = await Promise.all([
+      const previousYearPeriod = { startDate: `${selectedYear - 1}-01-01`, endDate: `${selectedYear - 1}-12-31` };
+      const [entriesResult, previousYearEntriesResult, accountsResult, categoriesResult, goalsResult] = await Promise.all([
         supabase.from("financial_entries").select(entryColumns).gte("due_date", period.startDate).lte("due_date", period.endDate).order("due_date"),
+        mode === "annual" ? supabase.from("financial_entries").select(entryColumns).gte("due_date", previousYearPeriod.startDate).lte("due_date", previousYearPeriod.endDate).order("due_date") : Promise.resolve({ data: [], error: null }),
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).eq("is_active", true).order("type").order("name"),
         supabase.from("savings_goals").select(goalColumns).eq("is_active", true).order("created_at", { ascending: false }).limit(1),
       ]);
 
-      const requestError = entriesResult.error ?? accountsResult.error ?? categoriesResult.error ?? goalsResult.error;
+      const requestError = entriesResult.error ?? previousYearEntriesResult.error ?? accountsResult.error ?? categoriesResult.error ?? goalsResult.error;
       if (requestError) setError(requestError.message);
       setEntries(entriesResult.data ?? []);
+      setPreviousYearEntries((previousYearEntriesResult.data ?? []) as FinancialEntry[]);
       setAccounts(accountsResult.data ?? []);
       setCategories(categoriesResult.data ?? []);
       setGoals(goalsResult.data ?? []);
@@ -84,6 +89,7 @@ function ReportsPage() {
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories]);
   const monthlyReport = useMemo(() => buildMonthlyReport(filteredEntries, accounts, categories, goals), [filteredEntries, accounts, categories, goals]);
   const annualReport = useMemo(() => buildAnnualReport(filteredEntries, accounts, categories, goals, selectedYear), [filteredEntries, accounts, categories, goals, selectedYear]);
+  const previousAnnualReport = useMemo(() => buildAnnualReport(previousYearEntries, accounts, categories, goals, selectedYear - 1), [previousYearEntries, accounts, categories, goals, selectedYear]);
   const { year, month } = parseMonthKey(selectedMonth);
   const periodLabel = mode === "monthly" ? monthLabel(year, month) : String(selectedYear);
   const hasEntries = filteredEntries.length > 0;
@@ -129,6 +135,7 @@ function ReportsPage() {
                 <Printer className="size-4" aria-hidden="true" />
                 Exportar / imprimir PDF
               </Button>
+              <p className="text-xs leading-5 text-slate-400 sm:hidden">No celular, o navegador/sistema abrirá a impressão ou opção de salvar em PDF.</p>
             </div>
           </div>
         </section>
@@ -143,7 +150,7 @@ function ReportsPage() {
             {mode === "monthly" ? (
               <MonthlyReportView report={monthlyReport} periodLabel={periodLabel} accountById={accountById} categoryById={categoryById} />
             ) : (
-              <AnnualReportView report={annualReport} year={selectedYear} />
+              <AnnualReportView report={annualReport} previousReport={previousAnnualReport} previousEntriesCount={previousYearEntries.length} year={selectedYear} />
             )}
           </section>
         ) : null}
@@ -200,11 +207,21 @@ function MonthlyReportView({ report, periodLabel, accountById, categoryById }: {
         <EntriesCard title="Entradas principais" entries={report.topIncome} tone="income" accountById={accountById} categoryById={categoryById} />
         <EntriesCard title="Pendentes / previstos" entries={report.pendingEntries.slice(0, 8)} tone="planned" accountById={accountById} categoryById={categoryById} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Parcelas de financiamentos no mês</CardTitle>
+          <CardDescription>Impacto oficial já incluído nos totais acima via lançamentos financeiros.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EntriesCardContent entries={financingEntriesForMonth(report.entries)} tone="expense" accountById={accountById} categoryById={categoryById} emptyText="Nenhuma parcela de financiamento gerada neste mês." />
+        </CardContent>
+      </Card>
     </>
   );
 }
 
-function AnnualReportView({ report, year }: { report: ReturnType<typeof buildAnnualReport>; year: number }) {
+function AnnualReportView({ report, previousReport, previousEntriesCount, year }: { report: ReturnType<typeof buildAnnualReport>; previousReport: ReturnType<typeof buildAnnualReport>; previousEntriesCount: number; year: number }) {
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -256,6 +273,16 @@ function AnnualReportView({ report, year }: { report: ReturnType<typeof buildAnn
         <DistributionCard title="Distribuição anual por classificação" description="Totais anuais agrupados por classificação." rows={report.byCategory} />
         <DistributionCard title="Resultado anual por conta" description="Totais anuais agrupados por conta." rows={report.byAccount} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Comparativo com {year - 1}</CardTitle>
+          <CardDescription>Exibido apenas quando há lançamentos no ano anterior.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {previousEntriesCount > 0 ? <PreviousYearComparison current={report.summary} previous={previousReport.summary} /> : <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Ainda não há dados do ano anterior para comparar.</p>}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -376,22 +403,51 @@ function EntriesCard({ title, entries, tone, accountById, categoryById }: { titl
         <CardDescription>{entries.length} lançamento(s) listado(s).</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-3">
-          {entries.map((entry) => (
-            <div key={entry.id} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 print-card">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-slate-50">{entry.description}</p>
-                  <p className="mt-1 text-xs text-slate-400">{new Date(`${entry.due_date}T00:00:00`).toLocaleDateString("pt-BR")} · {entry.account_id ? accountById.get(entry.account_id) ?? "Conta" : "Sem conta"} · {entry.category_id ? categoryById.get(entry.category_id) ?? "Classificação" : "Sem classificação"}</p>
-                </div>
-                <p className={tone === "income" ? "shrink-0 font-black text-emerald-300" : tone === "expense" ? "shrink-0 font-black text-rose-300" : "shrink-0 font-black text-[#f5c76b]"}>{formatCurrency(entry.status === "paid" ? entryActualAmount(entry) : Number(entry.expected_amount))}</p>
-              </div>
-            </div>
-          ))}
-          {entries.length === 0 ? <p className="text-sm text-slate-400">Nenhum lançamento para mostrar.</p> : null}
-        </div>
+        <EntriesCardContent entries={entries} tone={tone} accountById={accountById} categoryById={categoryById} emptyText="Nenhum lançamento para mostrar." />
       </CardContent>
     </Card>
+  );
+}
+
+function EntriesCardContent({ entries, tone, accountById, categoryById, emptyText }: { entries: FinancialEntry[]; tone: "income" | "expense" | "planned"; accountById: Map<string, string>; categoryById: Map<string, string>; emptyText: string }) {
+  return (
+    <div className="grid gap-3">
+      {entries.map((entry) => (
+        <div key={entry.id} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 print-card">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-slate-50">{entry.description}</p>
+              <p className="mt-1 text-xs text-slate-400">{new Date(`${entry.due_date}T00:00:00`).toLocaleDateString("pt-BR")} · {entry.account_id ? accountById.get(entry.account_id) ?? "Conta" : "Sem conta"} · {entry.category_id ? categoryById.get(entry.category_id) ?? "Classificação" : "Sem classificação"}</p>
+            </div>
+            <p className={tone === "income" ? "shrink-0 font-black text-emerald-300" : tone === "expense" ? "shrink-0 font-black text-rose-300" : "shrink-0 font-black text-[#f5c76b]"}>{formatCurrency(entry.status === "paid" ? entryActualAmount(entry) : Number(entry.expected_amount))}</p>
+          </div>
+        </div>
+      ))}
+      {entries.length === 0 ? <p className="text-sm text-slate-400">{emptyText}</p> : null}
+    </div>
+  );
+}
+
+function PreviousYearComparison({ current, previous }: { current: ReturnType<typeof buildAnnualReport>["summary"]; previous: ReturnType<typeof buildAnnualReport>["summary"] }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      <ComparisonMetric label="Entradas" current={current.actualIncome} previous={previous.actualIncome} />
+      <ComparisonMetric label="Saídas" current={current.actualExpenses} previous={previous.actualExpenses} />
+      <ComparisonMetric label="Saldo" current={current.actualBalance} previous={previous.actualBalance} />
+    </div>
+  );
+}
+
+function ComparisonMetric({ label, current, previous }: { label: string; current: number; previous: number }) {
+  const diff = current - previous;
+  const percent = previous !== 0 ? (diff / Math.abs(previous)) * 100 : null;
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 print-card">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
+      <p className="mt-2 text-xl font-black text-slate-50">{formatCurrency(current)}</p>
+      <p className={diff < 0 ? "mt-1 text-sm font-semibold text-rose-300" : "mt-1 text-sm font-semibold text-emerald-300"}>{diff >= 0 ? "+" : ""}{formatCurrency(diff)}{percent === null ? "" : ` (${percent >= 0 ? "+" : ""}${percent.toFixed(1)}%)`}</p>
+      <p className="mt-1 text-xs text-slate-500">Ano anterior: {formatCurrency(previous)}</p>
+    </div>
   );
 }
 

@@ -4,6 +4,7 @@ import {
   accountBalanceFromEntries,
   accountProjectedBalanceFromEntries,
   dueDateForMonth,
+  entryEffectiveDate,
   entryDisplayAmount,
   entryActualSignedAmount,
   entryExpectedSignedAmount,
@@ -116,6 +117,12 @@ describe("finance", () => {
     expect(entryProjectedSignedAmount({ ...baseEntry, entry_type: "expense", status: "planned", expected_amount: 80 })).toBe(-80);
   });
 
+  it("usa data realizada como data efetiva quando o lancamento foi pago", () => {
+    expect(entryEffectiveDate({ ...baseEntry, status: "planned", due_date: "2026-10-10", paid_date: null })).toBe("2026-10-10");
+    expect(entryEffectiveDate({ ...baseEntry, status: "paid", due_date: "2026-10-10", paid_date: "2026-09-30" })).toBe("2026-09-30");
+    expect(entryEffectiveDate({ ...baseEntry, status: "paid", due_date: "2026-10-10", paid_date: null })).toBe("2026-10-10");
+  });
+
   it("resume previsto e realizado do mes", () => {
     const entries: FinancialEntry[] = [
       { ...baseEntry, id: "income-paid", status: "paid", expected_amount: 1000, actual_amount: 950 },
@@ -205,11 +212,12 @@ describe("finance", () => {
     expect(isFinanceClassification(oldDefaultCategory, "user-1")).toBe(false);
   });
 
-  it("retorna os ultimos lancamentos por vencimento e criacao", () => {
+  it("retorna os ultimos lancamentos por data efetiva e criacao", () => {
     const entries: FinancialEntry[] = [
       { ...baseEntry, id: "old", due_date: "2026-09-01", created_at: "2026-09-01T00:00:00Z" },
       { ...baseEntry, id: "latest-created", due_date: "2026-09-10", created_at: "2026-09-03T00:00:00Z" },
       { ...baseEntry, id: "latest-date", due_date: "2026-09-12", created_at: "2026-09-02T00:00:00Z" },
+      { ...baseEntry, id: "paid-earlier", status: "paid", due_date: "2026-10-10", paid_date: "2026-09-05", created_at: "2026-09-04T00:00:00Z" },
     ];
 
     expect(latestEntries(entries, 2).map((entry) => entry.id)).toEqual(["latest-date", "latest-created"]);
