@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -130,19 +131,12 @@ function CategoriesPage() {
   return (
     <AppShell>
       <div className="space-y-5">
-        <section className="finance-glass-strong rounded-[2rem] p-5 text-white sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Classificação financeira</p>
-              <h2 className="mt-2 text-3xl font-black tracking-[-0.05em] sm:text-5xl">Fixo ou variável, sem complicar.</h2>
-              <p className="mt-3 max-w-xl text-sm text-slate-300">Use classificações amplas, como Ganhos fixos, Ganhos variáveis, Gastos fixos e Gastos variáveis.</p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+        <PageHero eyebrow="Classificação financeira" title="Fixo ou variável, sem complicar." description="Use classificações amplas, como Ganhos fixos, Ganhos variáveis, Gastos fixos e Gastos variáveis.">
+            <div className="grid gap-2">
               <Button type="button" onClick={() => openNewCategory("income")}>Nova classificação de ganho</Button>
               <Button type="button" variant="outline" onClick={() => openNewCategory("expense")}>Nova classificação de gasto</Button>
             </div>
-          </div>
-        </section>
+        </PageHero>
         <div className="grid gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader>

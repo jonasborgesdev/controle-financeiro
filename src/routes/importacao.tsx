@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AlertTriangle, CheckCircle2, Upload } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { DatePicker } from "@/components/date-picker";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -232,14 +234,8 @@ function ImportPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="finance-glass-strong overflow-hidden rounded-[2.25rem] p-5 text-white sm:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-end">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Importação CSV/OFX/PDF</p>
-              <h2 className="mt-3 max-w-2xl text-4xl font-black tracking-[-0.055em] sm:text-6xl">Extrato entra só depois da sua revisão.</h2>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">Exporte o extrato em CSV, OFX ou PDF no app/site do banco. PDFs tabulares são reconstruídos em linhas antes da leitura, e nada é salvo sem a sua conferência.</p>
-            </div>
-            <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/65 p-4 shadow-2xl">
+        <PageHero eyebrow="Importação CSV/OFX/PDF" title="Extrato entra só depois da sua revisão." description="Exporte o extrato em CSV, OFX ou PDF no app/site do banco. PDFs tabulares são reconstruídos em linhas antes da leitura, e nada é salvo sem a sua conferência.">
+            <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4">
               <div className="flex items-start gap-3">
                 <Upload className="mt-1 size-5 text-cyan-200" aria-hidden="true" />
                 <div>
@@ -248,8 +244,7 @@ function ImportPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+        </PageHero>
 
         {error ? <StateMessage tone="error" title="Atenção" description={error} /> : null}
         {success ? <StateMessage tone="success" title="Tudo certo" description={success} /> : null}
@@ -366,8 +361,7 @@ function ReviewItem({ item, accounts, categories, accountName, onChange }: { ite
           <Input value={item.description} onChange={(event) => onChange({ description: event.target.value })} />
         </div>
         <div className="space-y-2">
-          <Label>Data</Label>
-          <Input type="date" value={item.date} onChange={(event) => onChange({ date: event.target.value })} />
+          <DatePicker label="Data" value={item.date} onChange={(value) => onChange({ date: value })} />
         </div>
         <div className="space-y-2">
           <Label>Valor</Label>

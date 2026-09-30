@@ -26,14 +26,16 @@ O app usa a direção `Private Finance OS`: dark-first, premium, mobile-first e 
 
 - Mobile: header contextual compacto, bottom navigation fixa, botão central de adicionar e safe areas iOS.
 - Mobile: o item `Mais` abre bottom sheet com todas as rotas secundárias para manter a navegação principal limpa.
-- Desktop: sidebar fixa glass, conteúdo central máximo, grids analíticos e densidade maior sem parecer mobile esticado.
+- Desktop: sidebar glass fixa no viewport, conteúdo central máximo, grids analíticos e densidade maior sem parecer mobile esticado.
+- Desktop: navegação deve permanecer acessível durante o scroll em páginas longas; a sidebar concentra logo/topo, rotas no meio e encerramento de sessão no rodapé.
 
 ## Componentes
 
-- Inputs e selects têm altura mínima de 44px; selects e campos nativos de data/mês usam 60px no mobile/Safari para toque confortável e alinhamento visual.
-- Inputs `date` e `month` precisam respeitar largura fluida no Safari/iOS para não estourar cards ou grids mobile.
+- Inputs e selects têm altura mínima de 44px; controles de data/mês usam componentes próprios nas telas principais para toque confortável e alinhamento visual.
+- `MonthPicker` e `DatePicker` renderizam painéis via portal, com camada alta e proteção contra clipping em cards, modais, desktop e mobile.
 - Selects nativos usam `finance-select` com aparência normalizada para Safari/iOS; se ainda houver inconsistência em aparelho real, evoluir para um componente `Select` próprio.
 - Botão primário emerald; ações de planejamento usam cyan; alertas/metas usam gold; destrutivo usa rose.
+- Ação de sair usa rose de forma discreta, com ícone e integração visual à sidebar, sem competir com ações financeiras principais.
 - Cards financeiros importantes exibem valores com peso alto, tracking negativo leve e metadados discretos.
 - Listas mobile devem separar título, valor, metadados, status e ações em blocos tocáveis, evitando cards densos demais.
 

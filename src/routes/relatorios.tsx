@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { Printer } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { MonthPicker } from "@/components/month-picker";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { entryActualAmount, formatCurrency, isFinanceClassification, monthBounds, monthLabel, parseMonthKey, shiftMonth } from "@/lib/finance";
+import { entryActualAmount, formatCurrency, isFinanceClassification, monthBounds, monthLabel, parseMonthKey } from "@/lib/finance";
 import { financingEntriesForMonth } from "@/lib/financings";
 import { buildAnnualReport, buildMonthlyReport, type ReportDistributionRow } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/client";
@@ -101,27 +103,15 @@ function ReportsPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="finance-glass-strong overflow-hidden rounded-[2.25rem] p-5 text-white sm:p-8 print-card">
-          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Relatórios financeiros</p>
-              <h2 className="mt-2 max-w-3xl text-3xl font-black tracking-[-0.05em] sm:text-5xl">Mensal, anual e planejado vs realizado sem abrir planilha.</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">Consolide lançamentos, contas e classificações com visão executiva para análise e impressão.</p>
-              <p className="mt-4 hidden text-sm text-slate-500 print:block">Gerado em {new Date().toLocaleString("pt-BR")}</p>
-            </div>
-            <div className="print-hidden grid gap-3 rounded-[1.5rem] border border-white/10 bg-slate-950/65 p-3 lg:min-w-96">
+        <div className="print-card">
+          <PageHero eyebrow="Relatórios financeiros" title="Mensal, anual e planejado vs realizado sem abrir planilha." description="Consolide lançamentos, contas e classificações com visão executiva para análise e impressão.">
+            <div className="print-hidden grid gap-3">
               <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.06] p-1">
-                <button type="button" onClick={() => setMode("monthly")} className={mode === "monthly" ? "rounded-xl bg-emerald-400 px-3 py-2 text-sm font-bold text-[#02140f]" : "rounded-xl px-3 py-2 text-sm font-semibold text-slate-300"}>Mensal</button>
-                <button type="button" onClick={() => setMode("annual")} className={mode === "annual" ? "rounded-xl bg-cyan-300 px-3 py-2 text-sm font-bold text-[#02140f]" : "rounded-xl px-3 py-2 text-sm font-semibold text-slate-300"}>Anual</button>
+                <button type="button" onClick={() => setMode("monthly")} className={reportModeButtonClass(mode === "monthly", "emerald")}>Mensal</button>
+                <button type="button" onClick={() => setMode("annual")} className={reportModeButtonClass(mode === "annual", "cyan")}>Anual</button>
               </div>
               {mode === "monthly" ? (
-                <div className="grid gap-2 sm:grid-cols-[auto_1fr]">
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>Anterior</Button>
-                    <Button type="button" variant="outline" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>Próximo</Button>
-                  </div>
-                  <Input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} />
-                </div>
+                <MonthPicker label="Mês do relatório" value={selectedMonth} onChange={setSelectedMonth} />
               ) : (
                 <Input type="number" min="2000" max="2100" value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value || currentYear))} />
               )}
@@ -142,8 +132,9 @@ function ReportsPage() {
               {aiSettings?.enabled ? <Link to="/ia" search={mode === "monthly" ? { type: "monthly", month: selectedMonth, year: undefined } : { type: "annual", month: undefined, year: selectedYear }} className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">{mode === "monthly" ? "Analisar este mês com IA" : "Analisar este ano com IA"}</Link> : null}
               <p className="text-xs leading-5 text-slate-400 sm:hidden">No celular, o navegador/sistema abrirá a impressão ou opção de salvar em PDF.</p>
             </div>
-          </div>
-        </section>
+          </PageHero>
+          <p className="mt-4 hidden text-sm text-slate-500 print:block">Gerado em {new Date().toLocaleString("pt-BR")}</p>
+        </div>
 
         {error ? <StateMessage tone="error" title="Não consegui carregar os relatórios" description={error} /> : null}
         {loading ? <ReportsSkeleton /> : null}
@@ -421,7 +412,7 @@ function EntriesCardContent({ entries, tone, accountById, categoryById, emptyTex
         <div key={entry.id} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 print-card">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate font-semibold text-slate-50">{entry.description}</p>
+              <p className="font-semibold leading-5 text-slate-50 break-words">{entry.description}</p>
               <p className="mt-1 text-xs text-slate-400">{new Date(`${entry.due_date}T00:00:00`).toLocaleDateString("pt-BR")} · {entry.account_id ? accountById.get(entry.account_id) ?? "Conta" : "Sem conta"} · {entry.category_id ? categoryById.get(entry.category_id) ?? "Classificação" : "Sem classificação"}</p>
             </div>
             <p className={tone === "income" ? "shrink-0 font-black text-emerald-300" : tone === "expense" ? "shrink-0 font-black text-rose-300" : "shrink-0 font-black text-[#f5c76b]"}>{formatCurrency(entry.status === "paid" ? entryActualAmount(entry) : Number(entry.expected_amount))}</p>
@@ -506,4 +497,9 @@ function StateMessage({ tone, title, description }: { tone: "error" | "empty"; t
       <p className="mt-1 text-sm opacity-80">{description}</p>
     </div>
   );
+}
+
+function reportModeButtonClass(active: boolean, tone: "emerald" | "cyan") {
+  if (!active) return "rounded-xl px-3 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.06] hover:text-white";
+  return tone === "emerald" ? "rounded-xl bg-emerald-400 px-3 py-2 text-sm font-bold text-[#02140f]" : "rounded-xl bg-cyan-300 px-3 py-2 text-sm font-bold text-[#02140f]";
 }

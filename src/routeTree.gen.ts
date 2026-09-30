@@ -19,6 +19,7 @@ import { Route as IaRouteImport } from './routes/ia'
 import { Route as ImportacaoRouteImport } from './routes/importacao'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
+import { Route as ProjecoesRouteImport } from './routes/projecoes'
 import { Route as RecorrenciasRouteImport } from './routes/recorrencias'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as TransacoesRouteImport } from './routes/transacoes'
@@ -73,6 +74,11 @@ const PlanejamentoRoute = PlanejamentoRouteImport.update({
   path: '/planejamento',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjecoesRoute = ProjecoesRouteImport.update({
+  id: '/projecoes',
+  path: '/projecoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RecorrenciasRoute = RecorrenciasRouteImport.update({
   id: '/recorrencias',
   path: '/recorrencias',
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
+  '/projecoes': typeof ProjecoesRoute
   '/recorrencias': typeof RecorrenciasRoute
   '/relatorios': typeof RelatoriosRoute
   '/transacoes': typeof TransacoesRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
+  '/projecoes': typeof ProjecoesRoute
   '/recorrencias': typeof RecorrenciasRoute
   '/relatorios': typeof RelatoriosRoute
   '/transacoes': typeof TransacoesRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
+  '/projecoes': typeof ProjecoesRoute
   '/recorrencias': typeof RecorrenciasRoute
   '/relatorios': typeof RelatoriosRoute
   '/transacoes': typeof TransacoesRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
     | '/importacao'
     | '/login'
     | '/planejamento'
+    | '/projecoes'
     | '/recorrencias'
     | '/relatorios'
     | '/transacoes'
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/importacao'
     | '/login'
     | '/planejamento'
+    | '/projecoes'
     | '/recorrencias'
     | '/relatorios'
     | '/transacoes'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/importacao'
     | '/login'
     | '/planejamento'
+    | '/projecoes'
     | '/recorrencias'
     | '/relatorios'
     | '/transacoes'
@@ -194,6 +206,7 @@ export interface RootRouteChildren {
   ImportacaoRoute: typeof ImportacaoRoute
   LoginRoute: typeof LoginRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
+  ProjecoesRoute: typeof ProjecoesRoute
   RecorrenciasRoute: typeof RecorrenciasRoute
   RelatoriosRoute: typeof RelatoriosRoute
   TransacoesRoute: typeof TransacoesRoute
@@ -271,6 +284,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlanejamentoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projecoes': {
+      id: '/projecoes'
+      path: '/projecoes'
+      fullPath: '/projecoes'
+      preLoaderRoute: typeof ProjecoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/recorrencias': {
       id: '/recorrencias'
       path: '/recorrencias'
@@ -306,6 +326,7 @@ const rootRouteChildren: RootRouteChildren = {
   ImportacaoRoute: ImportacaoRoute,
   LoginRoute: LoginRoute,
   PlanejamentoRoute: PlanejamentoRoute,
+  ProjecoesRoute: ProjecoesRoute,
   RecorrenciasRoute: RecorrenciasRoute,
   RelatoriosRoute: RelatoriosRoute,
   TransacoesRoute: TransacoesRoute,

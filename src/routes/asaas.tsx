@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { AlertTriangle, CheckCircle2, CloudLightning } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { DatePicker } from "@/components/date-picker";
+import { MonthPicker } from "@/components/month-picker";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -171,14 +174,8 @@ function AsaasPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="finance-glass-strong overflow-hidden rounded-[2.25rem] p-5 text-white sm:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-end">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Sincronização Asaas</p>
-              <h2 className="mt-3 max-w-2xl text-4xl font-black tracking-[-0.055em] sm:text-6xl">Recebimentos entram depois da sua aprovação.</h2>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">Busque pagamentos recebidos no período, revise conta/classificação/descrição e só então grave como entrada realizada.</p>
-            </div>
-            <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/65 p-4 shadow-2xl">
+        <PageHero eyebrow="Sincronização Asaas" title="Recebimentos entram depois da sua aprovação." description="Busque pagamentos recebidos no período, revise conta/classificação/descrição e só então grave como entrada realizada.">
+            <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4">
               <div className="flex items-start gap-3">
                 <CloudLightning className="mt-1 size-5 text-cyan-200" aria-hidden="true" />
                 <div>
@@ -187,8 +184,7 @@ function AsaasPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+        </PageHero>
 
         {message ? <StateMessage tone={message.tone} title={message.tone === "success" ? "Tudo certo" : message.tone === "empty" ? "Sem recebimentos" : "Atenção"} description={message.text} /> : null}
         {loading ? <p className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 text-sm text-slate-400">Carregando integração...</p> : null}
@@ -201,10 +197,7 @@ function AsaasPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-              <div className="space-y-2">
-                <Label htmlFor="asaas-month">Mês</Label>
-                <Input id="asaas-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} />
-              </div>
+              <MonthPicker id="asaas-month" label="Mês" value={selectedMonth} onChange={setSelectedMonth} />
               <Button type="button" onClick={syncPeriod} disabled={!integrationReady || syncing}>{syncing ? "Sincronizando..." : `Sincronizar ${monthTitle}`}</Button>
               <Link to="/configuracoes" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Configurações</Link>
             </div>
@@ -263,8 +256,7 @@ function ReviewItem({ item, accounts, categories, accountName, onChange }: { ite
           <Input value={item.description} onChange={(event) => onChange({ description: event.target.value })} />
         </div>
         <div className="space-y-2">
-          <Label>Data</Label>
-          <Input type="date" value={item.date} onChange={(event) => onChange({ date: event.target.value })} />
+          <DatePicker label="Data" value={item.date} onChange={(value) => onChange({ date: value })} />
         </div>
         <div className="space-y-2">
           <Label>Valor líquido</Label>

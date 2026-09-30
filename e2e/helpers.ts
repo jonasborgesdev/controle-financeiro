@@ -69,3 +69,91 @@ export async function login(page: Page, email: string, password: string) {
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByText("Visão clara do mês, sem abrir planilha.")).toBeVisible();
 }
+
+export async function chooseMonth(page: Page, pickerId: string, monthValue: string) {
+  const [yearText, monthText] = monthValue.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const picker = page.locator(`[data-month-picker="${pickerId}"]`);
+  await picker.locator("[data-month-picker-trigger]").click();
+  const panel = page.locator("[data-month-picker-panel]");
+  await expect(panel).toBeVisible();
+
+  for (let index = 0; index < 30; index += 1) {
+    const currentYear = Number((await panel.locator("text=/^\\d{4}$/").first().textContent()) ?? year);
+    if (currentYear === year) break;
+    await panel.getByRole("button", { name: currentYear > year ? "Ano anterior" : "Próximo ano" }).click();
+  }
+
+  await panel.getByRole("button", { name: monthNames[month - 1], exact: true }).click();
+  await expect(panel).toHaveCount(0);
+}
+
+export async function chooseDate(page: Page, pickerId: string, dateValue: string) {
+  const [yearText, monthText, dayText] = dateValue.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const picker = page.locator(`[data-date-picker="${pickerId}"]`);
+  await picker.locator("[data-date-picker-trigger]").click();
+  const panel = page.locator("[data-date-picker-panel]");
+  await expect(panel).toBeVisible();
+
+  for (let index = 0; index < 60; index += 1) {
+    const currentTitle = (await panel.locator("p.text-lg").first().textContent()) ?? "";
+    const currentDate = parsePtBrMonthTitle(currentTitle);
+    if (currentDate.year === year && currentDate.month === month) break;
+    const currentIndex = currentDate.year * 12 + currentDate.month;
+    const targetIndex = year * 12 + month;
+    await panel.getByRole("button", { name: currentIndex > targetIndex ? "Mês anterior" : "Próximo mês" }).click();
+  }
+
+  await panel.getByRole("button", { name: String(day), exact: true }).click();
+  await expect(panel).toHaveCount(0);
+}
+
+export async function expectFloatingMonthPanel(page: Page) {
+  const panel = page.locator("[data-month-picker-panel]");
+  await expect(panel).toBeVisible();
+  const result = await panel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const topElement = document.elementFromPoint(centerX, centerY);
+    return {
+      clipped: rect.left < 0 || rect.top < 0 || rect.right > window.innerWidth || rect.bottom > window.innerHeight,
+      topmost: Boolean(topElement && element.contains(topElement)),
+      zIndex: Number.parseInt(window.getComputedStyle(element).zIndex || "0", 10),
+    };
+  });
+  expect(result.clipped).toBe(false);
+  expect(result.topmost).toBe(true);
+  expect(result.zIndex).toBeGreaterThanOrEqual(1000);
+}
+
+export async function expectFloatingDatePanel(page: Page) {
+  const panel = page.locator("[data-date-picker-panel]");
+  await expect(panel).toBeVisible();
+  const result = await panel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const topElement = document.elementFromPoint(centerX, centerY);
+    return {
+      clipped: rect.left < 0 || rect.top < 0 || rect.right > window.innerWidth || rect.bottom > window.innerHeight,
+      topmost: Boolean(topElement && element.contains(topElement)),
+      zIndex: Number.parseInt(window.getComputedStyle(element).zIndex || "0", 10),
+    };
+  });
+  expect(result.clipped).toBe(false);
+  expect(result.topmost).toBe(true);
+  expect(result.zIndex).toBeGreaterThanOrEqual(1000);
+}
+
+function parsePtBrMonthTitle(title: string) {
+  const normalized = title.toLowerCase().trim();
+  const [monthName = "", yearText = ""] = normalized.split(" de ");
+  const months = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  return { month: months.indexOf(monthName) + 1, year: Number(yearText) };
+}

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createE2EUser, deleteE2EUser, hasE2EEnv, login } from "./helpers";
+import { chooseDate, chooseMonth, createE2EUser, deleteE2EUser, hasE2EEnv, login } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -49,8 +49,8 @@ test.describe("fluxo financeiro autenticado", () => {
     await page.getByLabel("Descrição").fill(entryDescription);
     await page.getByLabel("Valor previsto").fill("1000");
     await page.getByLabel("Valor real").fill("950");
-    await page.getByLabel("Data prevista").fill("2026-09-05");
-    await page.getByLabel("Data realizada").fill("2026-09-05");
+    await chooseDate(page, "due", "2026-09-05");
+    await chooseDate(page, "paid-date", "2026-09-05");
     await page.getByLabel("Conta").selectOption({ label: accountName });
     await page.getByRole("button", { name: "Salvar lançamento" }).click();
 
@@ -91,8 +91,8 @@ test.describe("fluxo financeiro autenticado", () => {
     await page.getByLabel("Descrição").fill(ruleDescription);
     await page.getByLabel("Valor previsto").fill("120");
     await page.getByLabel("Dia do mês").fill("31");
-    await page.getByLabel("Início").fill(formatMonth(start));
-    await page.getByLabel("Fim opcional").fill(formatMonth(end));
+    await chooseMonth(page, "start-month", formatMonth(start));
+    await chooseMonth(page, "end-month", formatMonth(end));
     await page.getByRole("button", { name: "Salvar e gerar lançamentos" }).click();
 
     await expect(page.getByText(ruleDescription)).toBeVisible();
@@ -109,8 +109,8 @@ test.describe("fluxo financeiro autenticado", () => {
     }).toBeGreaterThan(0);
 
     await page.getByRole("link", { name: "Ganhos/Gastos" }).click();
-    await page.locator('input[type="month"]').fill(formatMonth(middle));
-    await expect(page.locator('input[type="month"]')).toHaveValue(formatMonth(middle));
+    await chooseMonth(page, "entries-month", formatMonth(middle));
+    await expect(page.getByRole("button", { name: new RegExp(monthLabelRegex(formatMonth(middle)), "i") })).toBeVisible();
   });
 
   test("cria classificações simples de ganho e gasto pela interface", async ({ page }) => {
@@ -150,3 +150,8 @@ test.describe("fluxo financeiro autenticado", () => {
     await expect(page.getByText("Gasto", { exact: true }).first()).toBeVisible();
   });
 });
+
+function monthLabelRegex(monthValue: string) {
+  const [year, month] = monthValue.split("-").map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(" de ", " de ");
+}
