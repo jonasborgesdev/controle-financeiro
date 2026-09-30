@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createE2EUser, deleteE2EUser, hasE2EEnv, login } from "./helpers";
+import { chooseDate, chooseMonth, createE2EUser, deleteE2EUser, hasE2EEnv, login } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -52,7 +52,7 @@ test.describe("financiamentos autenticado", () => {
     await dialog.getByLabel("Total parcelas").fill("24");
     await dialog.getByLabel("Pagas").fill("3");
     await dialog.getByLabel("Dia vencimento").fill("10");
-    await dialog.getByLabel("Data de início").fill("2026-01-10");
+    await chooseDate(page, "financing-start", "2026-01-10");
     await dialog.getByRole("button", { name: "Salvar financiamento" }).click();
 
     const financingCard = page.getByText(financingName).locator("xpath=ancestor::div[@data-slot='card'][1]");
@@ -61,17 +61,16 @@ test.describe("financiamentos autenticado", () => {
     await expect(financingCard.getByText("21 restante(s) · 13%")).toBeVisible();
     await expect(financingCard.getByText("R$ 21.000,00")).toBeVisible();
 
-    await page.locator('input[type="month"]').fill("2026-10");
-    await expect(page.locator('input[type="month"]')).toHaveValue("2026-10");
+    await chooseMonth(page, "financing-month", "2026-10");
     await page.getByRole("button", { name: "Gerar parcela deste mês" }).click();
     await expect(financingCard.getByText("Gerada como prevista.")).toBeVisible();
     await expect(financingCard.getByRole("button", { name: "Gerar parcela deste mês" })).toBeDisabled();
 
     await financingCard.getByRole("button", { name: "Marcar como paga" }).click();
     const paymentDialog = page.getByRole("dialog", { name: "Confirmar pagamento" });
-    await expect(paymentDialog.getByLabel("Data de pagamento")).toBeVisible();
+    await expect(paymentDialog.locator('[data-date-picker="financing-paid-date"] [data-date-picker-trigger]')).toBeVisible();
     await expect(paymentDialog.getByLabel("Valor pago")).toHaveValue("1000");
-    await paymentDialog.getByLabel("Data de pagamento").fill("2026-09-30");
+    await chooseDate(page, "financing-paid-date", "2026-09-30");
     await paymentDialog.getByLabel("Valor pago").fill("990");
     await paymentDialog.getByRole("button", { name: "Confirmar pagamento" }).click();
     await expect(financingCard.getByText("4/24 pagas")).toBeVisible();
@@ -99,10 +98,10 @@ test.describe("financiamentos autenticado", () => {
     expect(entries?.[0]?.financing_id).toBeTruthy();
 
     await page.getByRole("link", { name: "Ganhos/Gastos" }).click();
-    await page.locator('input[type="month"]').fill("2026-09");
+    await chooseMonth(page, "entries-month", "2026-09");
     await expect(page.getByText(installmentDescription)).toBeVisible();
 
-    await page.locator('input[type="month"]').fill("2026-10");
+    await chooseMonth(page, "entries-month", "2026-10");
     await expect(page.getByText(installmentDescription)).toHaveCount(0);
   });
 });

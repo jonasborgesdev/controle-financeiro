@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -139,16 +140,9 @@ function AccountsPage() {
   return (
     <AppShell>
       <div className="space-y-5">
-        <section className="finance-glass-strong rounded-[2rem] p-5 text-white sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Carteira operacional</p>
-              <h2 className="mt-2 text-3xl font-black tracking-[-0.05em] sm:text-5xl">Contas com saldo vivo.</h2>
-              <p className="mt-3 max-w-xl text-sm text-slate-300">O saldo atual usa só realizados. O saldo previsto mostra quanto deve sobrar considerando os lançamentos planejados.</p>
-            </div>
+        <PageHero eyebrow="Carteira operacional" title="Contas com saldo vivo." description="O saldo atual usa só realizados. O saldo previsto mostra quanto deve sobrar considerando os lançamentos planejados.">
             <Button type="button" onClick={openNewAccount}>Nova conta</Button>
-          </div>
-        </section>
+        </PageHero>
         <Card>
           <CardHeader>
             <CardTitle>Contas</CardTitle>

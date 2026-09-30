@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { MonthPicker } from "@/components/month-picker";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   accountBalanceFromEntries,
   accountBalancesFromEntries,
@@ -16,7 +17,6 @@ import {
   monthBounds,
   monthLabel,
   parseMonthKey,
-  shiftMonth,
   summarizeEntries,
 } from "@/lib/finance";
 import { financingNextDueDate, monthlyFinancingCommitment } from "@/lib/financings";
@@ -123,39 +123,23 @@ function DashboardPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="finance-glass-strong overflow-hidden rounded-[2.25rem] p-5 text-white sm:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr] lg:items-end">
+        <PageHero eyebrow="Dashboard mensal" title="Visão clara do mês, sem abrir planilha." description="Acompanhe saldo disponível, entradas, saídas, contas e classificações do período selecionado.">
+          <div className="grid gap-4">
+            <MonthPicker id="selected-month" label="Mês do dashboard" value={selectedMonth} onChange={setSelectedMonth} />
             <div>
-              <p className="text-sm font-medium text-cyan-200">Dashboard mensal</p>
-              <h2 className="mt-3 max-w-2xl text-4xl font-black tracking-[-0.055em] sm:text-6xl">Visão clara do mês, sem abrir planilha.</h2>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">Acompanhe saldo disponível, entradas, saídas, contas e classificações do período selecionado.</p>
-              <div className="mt-5 grid gap-3 sm:max-w-2xl sm:grid-cols-[auto_1fr] sm:items-end">
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>Anterior</Button>
-                  <Button type="button" variant="outline" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>Próximo</Button>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-xs font-medium text-slate-300" htmlFor="selected-month">Mês</label>
-                    <Input id="selected-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-xs font-medium text-slate-300" htmlFor="selected-account">Conta</label>
-                    <select id="selected-account" className="finance-select" value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)}>
-                      <option value="all">Todas as contas</option>
-                      {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400" htmlFor="selected-account">Conta</label>
+              <select id="selected-account" className="finance-select" value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)}>
+                <option value="all">Todas as contas</option>
+                {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
             </div>
-            <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/65 p-4 text-slate-50 shadow-2xl">
+            <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4 text-slate-50">
               <p className="text-sm text-slate-400">Saldo disponível</p>
-              <p className={totalAvailable < 0 ? "mt-2 text-4xl font-black tracking-[-0.05em] text-rose-300" : "mt-2 text-4xl font-black tracking-[-0.05em] text-emerald-300"}>{formatCurrency(totalAvailable)}</p>
+              <p className={totalAvailable < 0 ? "mt-2 text-4xl font-black tracking-[-0.04em] text-rose-300" : "mt-2 text-4xl font-black tracking-[-0.04em] text-emerald-300"}>{formatCurrency(totalAvailable)}</p>
               <p className="mt-3 text-sm text-slate-400">{selectedAccountId === "all" ? "Soma das contas ativas" : accountNameById.get(selectedAccountId) ?? "Conta selecionada"}</p>
             </div>
           </div>
-        </section>
+        </PageHero>
 
         {error ? <StateMessage tone="error" title="Não consegui carregar o dashboard" description={error} /> : null}
         {loading ? <DashboardSkeleton /> : null}
@@ -205,7 +189,10 @@ function DashboardPage() {
                     <CardTitle>Resumo do planejamento</CardTitle>
                     <CardDescription>Previsto vs realizado do mês e progresso da meta de economia.</CardDescription>
                   </div>
-                    <Link to="/planejamento" className="rounded-xl bg-cyan-400/12 px-4 py-2 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/18">Abrir planejamento</Link>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Link to="/planejamento" className="rounded-xl bg-cyan-400/12 px-4 py-2 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/18">Abrir planejamento</Link>
+                      <Link to="/projecoes" className="rounded-xl border border-[#f5c76b]/25 bg-[#f5c76b]/[0.08] px-4 py-2 text-center text-sm font-semibold text-[#f5c76b] transition hover:bg-[#f5c76b]/[0.14]">Ver projeção</Link>
+                    </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -314,6 +301,7 @@ function DashboardPage() {
                   <Link to="/importacao" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Importar extrato</Link>
                   {asaasSettings?.enabled ? <Link to="/asaas" className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.10] px-4 py-3 text-center text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.16]">Sincronizar Asaas</Link> : null}
                   {aiSettings?.enabled ? <Link to="/ia" search={{ type: "monthly", month: selectedMonth, year: undefined }} className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Analisar com IA</Link> : null}
+                  <Link to="/projecoes" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Ver projeção</Link>
                   <Link to="/relatorios" className="rounded-2xl border border-[#f5c76b]/25 bg-[#f5c76b]/[0.08] px-4 py-3 text-center text-sm font-semibold text-[#f5c76b] transition hover:bg-[#f5c76b]/[0.14]">Ver relatório</Link>
                 </div>
               </CardContent>

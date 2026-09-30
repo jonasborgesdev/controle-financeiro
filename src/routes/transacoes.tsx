@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { DatePicker } from "@/components/date-picker";
+import { MonthPicker } from "@/components/month-picker";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -244,24 +247,12 @@ function EntriesPage() {
   return (
     <AppShell>
       <div className="space-y-5">
-        <section className="finance-glass-strong overflow-hidden rounded-[2rem] p-5 text-white sm:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Ganhos e gastos</p>
-              <h2 className="mt-2 text-3xl font-black tracking-[-0.05em] sm:text-5xl">Lançamentos por competência.</h2>
-              <p className="mt-3 max-w-xl text-sm text-slate-300">Cada item tem valor previsto, status e valor real, igual ao seu controle no Notion.</p>
-            </div>
-            <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/65 p-3 text-slate-50 shadow-2xl lg:min-w-80">
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto] lg:grid-cols-1">
-                <div>
-                  <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400" htmlFor="entries-month">Mês de competência</label>
-                  <Input id="entries-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} />
-                </div>
-                <Button type="button" className="h-11 sm:self-end" onClick={() => openNewEntry()}>Novo lançamento</Button>
-              </div>
-            </div>
+        <PageHero eyebrow="Ganhos e gastos" title="Lançamentos por competência." description="Cada item tem valor previsto, status e valor real, igual ao seu controle no Notion.">
+          <div className="grid gap-4">
+            <MonthPicker id="entries-month" label="Mês de competência" value={selectedMonth} onChange={setSelectedMonth} />
+            <Button type="button" onClick={() => openNewEntry()}>Novo lançamento</Button>
           </div>
-        </section>
+        </PageHero>
 
         <SummaryCharts summary={summary} />
 
@@ -340,12 +331,10 @@ function EntriesPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="due">Data prevista</Label>
-              <Input id="due" type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} required />
+              <DatePicker id="due" label="Data prevista" value={form.due_date} onChange={(value) => setForm({ ...form, due_date: value })} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="paid-date">Data realizada</Label>
-              <Input id="paid-date" type="date" value={form.paid_date} onChange={(event) => setForm({ ...form, paid_date: event.target.value })} disabled={form.status !== "paid"} />
+              <DatePicker id="paid-date" label="Data realizada" value={form.paid_date} onChange={(value) => setForm({ ...form, paid_date: value })} disabled={form.status !== "paid"} />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

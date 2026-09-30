@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { CheckCircle2, Pencil, Plus, Power, ReceiptText } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { DatePicker } from "@/components/date-picker";
+import { MonthPicker } from "@/components/month-picker";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -282,22 +285,12 @@ function FinancingsPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="finance-glass-strong overflow-hidden rounded-[2.25rem] p-5 text-white sm:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Financiamentos</p>
-              <h2 className="mt-2 max-w-3xl text-3xl font-black tracking-[-0.05em] sm:text-5xl">Controle parcelas, contrato e impacto mensal.</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">Gere a parcela do mês como lançamento previsto e marque como paga quando sair da conta.</p>
-            </div>
-            <div className="grid gap-3 rounded-[1.5rem] border border-white/10 bg-slate-950/65 p-3 lg:min-w-96">
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400" htmlFor="financing-month">Mês da parcela</label>
-                <Input id="financing-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} />
-              </div>
-              <Button type="button" onClick={openCreate} className="gap-2"><Plus className="size-4" aria-hidden="true" />Cadastrar financiamento</Button>
-            </div>
+        <PageHero eyebrow="Financiamentos" title="Controle parcelas, contrato e impacto mensal." description="Gere a parcela do mês como lançamento previsto e marque como paga quando sair da conta.">
+          <div className="grid gap-4">
+            <MonthPicker id="financing-month" label="Mês da parcela" value={selectedMonth} onChange={setSelectedMonth} />
+            <Button type="button" onClick={openCreate} className="gap-2"><Plus className="size-4" aria-hidden="true" />Cadastrar financiamento</Button>
           </div>
-        </section>
+        </PageHero>
 
         {error ? <StateMessage tone="error" title="Atenção" description={error} /> : null}
         {loading ? <div className="grid gap-4 sm:grid-cols-2">{Array.from({ length: 2 }, (_, index) => <div key={index} className="h-56 animate-pulse rounded-3xl border border-white/10 bg-white/[0.06]" />)}</div> : null}
@@ -334,7 +327,7 @@ function FinancingsPage() {
                             <CardTitle>{financing.name}</CardTitle>
                             <CardDescription>{accountById.get(financing.account_id ?? "") ?? "Sem conta"} · {categoryById.get(financing.category_id ?? "") ?? "Sem classificação"}</CardDescription>
                           </div>
-                          <span className={financing.status === "active" ? "rounded-full bg-emerald-400/12 px-3 py-1 text-xs font-bold text-emerald-200" : "rounded-full bg-white/[0.08] px-3 py-1 text-xs font-bold text-slate-300"}>{financing.status === "active" ? "Ativo" : financing.status === "finished" ? "Finalizado" : "Inativo"}</span>
+                          <span className={financingStatusClass(financing.status)}>{financing.status === "active" ? "Ativo" : financing.status === "finished" ? "Finalizado" : "Inativo"}</span>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -386,7 +379,7 @@ function FinancingsPage() {
               <div className="grid gap-2"><Label htmlFor="financing-due-day">Dia vencimento</Label><Input id="financing-due-day" type="number" min="1" max="31" value={form.due_day} onChange={(event) => setForm({ ...form, due_day: event.target.value })} required /></div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="grid gap-2"><Label htmlFor="financing-start">Data de início</Label><Input id="financing-start" type="date" value={form.start_date} onChange={(event) => setForm({ ...form, start_date: event.target.value })} required /></div>
+              <DatePicker id="financing-start" label="Data de início" value={form.start_date} onChange={(value) => setForm({ ...form, start_date: value })} required />
               <div className="grid gap-2"><Label htmlFor="financing-status">Status</Label><select id="financing-status" className="finance-select" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as Financing["status"] })}><option value="active">Ativo</option><option value="finished">Finalizado</option><option value="inactive">Inativo</option></select></div>
             </div>
             <div className="grid gap-2"><Label htmlFor="financing-notes">Observações</Label><textarea id="financing-notes" className="min-h-28 rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-sm text-slate-50 outline-none focus-visible:border-cyan-300 focus-visible:ring-3 focus-visible:ring-cyan-300/20" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></div>
@@ -403,8 +396,7 @@ function FinancingsPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="financing-paid-date">Data de pagamento</Label>
-                  <Input id="financing-paid-date" type="date" value={paymentConfirmation.paidDate} onChange={(event) => setPaymentConfirmation({ ...paymentConfirmation, paidDate: event.target.value })} required />
+                  <DatePicker id="financing-paid-date" label="Data de pagamento" value={paymentConfirmation.paidDate} onChange={(value) => setPaymentConfirmation({ ...paymentConfirmation, paidDate: value })} required />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="financing-paid-amount">Valor pago</Label>
@@ -438,4 +430,8 @@ function errorMessage(caughtError: unknown, fallback: string) {
 function StateMessage({ tone, title, description }: { tone: "error" | "empty"; title: string; description: string }) {
   const className = tone === "error" ? "border-rose-300/20 bg-rose-400/[0.10] text-rose-100" : "border-cyan-300/20 bg-cyan-400/[0.10] text-cyan-100";
   return <div className={`rounded-2xl border p-4 ${className}`}><p className="font-semibold">{title}</p><p className="mt-1 text-sm opacity-80">{description}</p></div>;
+}
+
+function financingStatusClass(status: Financing["status"]) {
+  return status === "active" ? "rounded-full bg-emerald-400/12 px-3 py-1 text-xs font-bold text-emerald-200" : "rounded-full bg-white/[0.08] px-3 py-1 text-xs font-bold text-slate-300";
 }

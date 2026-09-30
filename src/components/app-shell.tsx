@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Banknote, BarChart3, BrainCircuit, CalendarClock, CircleDollarSign, CreditCard, Home, Layers3, Plus, ReceiptText, Settings, Sparkles, Upload, X } from "lucide-react";
+import { Banknote, BarChart3, BrainCircuit, CalendarClock, CircleDollarSign, CreditCard, Home, Layers3, LineChart, Plus, ReceiptText, Settings, Upload, X } from "lucide-react";
 import LogoutButton from "@/components/auth/logout-button";
 
 const navItems = [
   { to: "/", label: "Início", icon: Home },
   { to: "/transacoes", label: "Lançamentos", icon: ReceiptText },
   { to: "/planejamento", label: "Planejamento", icon: BarChart3 },
+  { to: "/projecoes", label: "Projeções", icon: LineChart },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { to: "/ia", label: "IA", icon: BrainCircuit },
   { to: "/financiamentos", label: "Financiamentos", icon: Banknote },
@@ -30,9 +31,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_12%_18%,rgba(16,185,129,0.18),transparent_24rem),radial-gradient(circle_at_86%_8%,rgba(34,211,238,0.14),transparent_26rem),linear-gradient(180deg,#070A0F_0%,#0A1018_48%,#070A0F_100%)]" />
       <div className="mx-auto grid min-h-screen w-full max-w-[92rem] lg:grid-cols-[17rem_1fr]">
         <aside className="safe-pt hidden min-h-screen p-4 lg:block">
-          <div className="finance-glass sticky top-4 flex h-[calc(100vh-2rem)] flex-col rounded-[1.75rem] p-4">
+          <div className="finance-glass fixed top-4 z-40 flex h-[calc(100vh-2rem)] w-[15rem] flex-col rounded-[1.75rem] p-4 lg:left-[max(1rem,calc((100vw-92rem)/2+1rem))]">
             <div className="flex items-center gap-3 px-2 py-2">
-            <div className="grid size-11 place-items-center rounded-2xl bg-emerald-400 text-[#02140f] shadow-lg shadow-emerald-950/30">
+              <div className="grid size-11 place-items-center rounded-2xl bg-emerald-400 text-[#02140f] shadow-lg shadow-emerald-950/30">
                 <CircleDollarSign className="size-6" aria-hidden="true" />
               </div>
               <div>
@@ -60,12 +61,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               })}
             </nav>
 
-            <div className="mt-auto space-y-4 rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4">
-              <div className="flex items-start gap-3">
-                <Sparkles className="mt-0.5 size-4 text-[#f5c76b]" aria-hidden="true" />
-                <p className="text-sm leading-5 text-slate-300">Integrações opcionais entram só depois de revisão e sem expor chaves no app.</p>
-              </div>
-              <LogoutButton />
+            <div className="mt-auto">
+              <LogoutButton
+                label="Encerrar sessão"
+                showIcon
+                className="h-12 w-full justify-start gap-3 rounded-[1.35rem] border-rose-300/10 bg-rose-400/[0.07] px-4 text-rose-100 shadow-[0_18px_45px_rgba(3,7,18,0.28)] hover:border-rose-200/18 hover:bg-rose-400/[0.12] hover:text-rose-50 focus-visible:ring-rose-300/20"
+              />
             </div>
           </div>
         </aside>

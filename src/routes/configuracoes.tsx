@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { AlertTriangle, BrainCircuit, CheckCircle2, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -174,14 +175,8 @@ function SettingsPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="finance-glass-strong overflow-hidden rounded-[2.25rem] p-5 text-white sm:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-end">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Configurações</p>
-              <h2 className="mt-3 max-w-2xl text-4xl font-black tracking-[-0.055em] sm:text-6xl">Integrações opcionais, sem travar o controle manual.</h2>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">O Asaas complementa lançamentos de entrada. A chave fica no servidor e nunca aparece no navegador.</p>
-            </div>
-            <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/65 p-4 shadow-2xl">
+        <PageHero eyebrow="Configurações" title="Integrações opcionais, sem travar o controle manual." description="O Asaas complementa lançamentos de entrada. A chave fica no servidor e nunca aparece no navegador.">
+            <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-1 size-5 text-emerald-300" aria-hidden="true" />
                 <div>
@@ -190,8 +185,7 @@ function SettingsPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+        </PageHero>
 
         {message ? <StateMessage tone={message.tone} title={message.tone === "success" ? "Tudo certo" : "Atenção"} description={message.text} /> : null}
         {loading ? <p className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 text-sm text-slate-400">Carregando configurações...</p> : null}

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AlertTriangle, BrainCircuit, CheckCircle2, History, ShieldCheck, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { MonthPicker } from "@/components/month-picker";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -98,14 +100,8 @@ function AiPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="finance-glass-strong overflow-hidden rounded-[2.25rem] p-5 text-white sm:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-end">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Análise inteligente</p>
-              <h2 className="mt-3 max-w-3xl text-4xl font-black tracking-[-0.055em] sm:text-6xl">IA como apoio, sem expor dados sensíveis.</h2>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">O servidor envia apenas resumos agregados: totais, classificações, contas anonimizadas, metas, financiamentos e tendências.</p>
-            </div>
-            <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/65 p-4 shadow-2xl">
+        <PageHero eyebrow="Análise inteligente" title="IA como apoio, sem expor dados sensíveis." description="O servidor envia apenas resumos agregados: totais, classificações, contas anonimizadas, metas, financiamentos e tendências.">
+            <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-1 size-5 text-emerald-300" aria-hidden="true" />
                 <div>
@@ -114,8 +110,7 @@ function AiPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+        </PageHero>
 
         {message ? <StateMessage tone={message.tone} title={message.tone === "success" ? "Tudo certo" : message.tone === "empty" ? "Configuração necessária" : "Atenção"} description={message.text} /> : null}
         {loading ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-2xl border border-white/10 bg-white/[0.06]" />)}</div> : null}
@@ -130,7 +125,7 @@ function AiPage() {
               <div className="grid gap-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   {analysisCards.map((card) => (
-                    <button key={card.type} type="button" onClick={() => setAnalysisType(card.type)} className={analysisType === card.type ? "rounded-2xl border border-cyan-300/35 bg-cyan-400/[0.12] p-4 text-left text-cyan-50" : "rounded-2xl border border-white/10 bg-white/[0.05] p-4 text-left text-slate-200 transition hover:bg-white/[0.08]"}>
+                    <button key={card.type} type="button" onClick={() => setAnalysisType(card.type)} className={analysisCardClass(analysisType === card.type)}>
                       <p className="font-bold">{card.title}</p>
                       <p className="mt-1 text-sm opacity-75">{card.description}</p>
                     </button>
@@ -140,7 +135,7 @@ function AiPage() {
                   {analysisType === "annual" || analysisType === "planning" ? (
                     <div className="space-y-2"><label className="text-sm font-semibold text-slate-300" htmlFor="ai-year">Ano</label><Input id="ai-year" type="number" min="2000" max="2100" value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value || currentYear))} /></div>
                   ) : (
-                    <div className="space-y-2"><label className="text-sm font-semibold text-slate-300" htmlFor="ai-month">Mês</label><Input id="ai-month" type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} /></div>
+                    <MonthPicker id="ai-month" label="Mês" value={selectedMonth} onChange={setSelectedMonth} />
                   )}
                   <Button type="button" onClick={() => generate(false)} disabled={!canGenerate || generating}>{generating ? "Analisando..." : "Gerar análise"}</Button>
                   <Button type="button" variant="outline" onClick={() => generate(true)} disabled={!canGenerate || generating}>Gerar nova análise</Button>
@@ -227,7 +222,7 @@ function AiResponseView({ response, analysis }: { response: AiStructuredResponse
 
 function DecisionPanel({ summary }: { summary: AiInputSummary }) {
   return (
-    <div className="rounded-3xl border border-cyan-300/15 bg-cyan-400/[0.05] p-5 text-slate-100">
+    <div className="rounded-3xl border border-cyan-300/15 bg-cyan-400/[0.05] p-5 text-cyan-50">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">Painel de decisão</p>
@@ -299,6 +294,10 @@ function formatCompactCurrency(value: number) {
   return formatCurrency(value).replace(/\s/g, " ");
 }
 
+function analysisCardClass(active: boolean) {
+  return active ? "rounded-2xl border border-cyan-300/35 bg-cyan-400/[0.12] p-4 text-left text-cyan-50" : "rounded-2xl border border-white/10 bg-white/[0.05] p-4 text-left text-slate-200 transition hover:bg-white/[0.08]";
+}
+
 function NextMonthPlan({ summary }: { summary: AiInputSummary }) {
   const diagnosis = summary.financialDiagnosis;
   const mainCategory = summary.topExpenseCategories[0];
@@ -310,7 +309,7 @@ function NextMonthPlan({ summary }: { summary: AiInputSummary }) {
     topEntry ? `Revisar primeiro: ${topEntry.label} (${formatCurrency(topEntry.amount)}).` : "Revisar os maiores lançamentos antes de cortar valores pequenos.",
     summary.totals.expectedBalance < 0 ? "Refazer o planejamento para o próximo mês não começar deficitário." : "Manter planejamento positivo e acompanhar execução semanalmente.",
   ];
-  return <div className="mt-4 rounded-3xl border border-emerald-300/15 bg-emerald-400/[0.07] p-4"><p className="font-bold text-emerald-100">Plano do próximo mês</p><div className="mt-3 grid gap-2 md:grid-cols-2">{actions.map((action) => <p key={action} className="rounded-2xl bg-slate-950/25 px-3 py-2 text-sm leading-6 text-slate-200">{action}</p>)}</div></div>;
+  return <div className="mt-4 rounded-3xl border border-emerald-300/15 bg-emerald-400/[0.07] p-4"><p className="font-bold text-emerald-100">Plano do próximo mês</p><div className="mt-3 grid gap-2 md:grid-cols-2">{actions.map((action) => <p key={action} className="rounded-2xl bg-slate-950/25 px-3 py-2 text-sm leading-6 text-emerald-50">{action}</p>)}</div></div>;
 }
 
 function MiniChartCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {

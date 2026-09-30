@@ -7,8 +7,9 @@ Sistema web mobile-first de controle financeiro pessoal/empresarial.
 - Semana 6 finalizada: Integração Asaas.
 - Semana 7 finalizada: Dashboard Anual e Relatórios.
 - Semana 7.1 finalizada: Financiamentos e Exportação Melhorada.
-- PR atual: `#12` — `feat: implementar relatórios e financiamentos`.
-- Próxima etapa planejada: Semana 8 — Integração com IA.
+- Semana 8 finalizada: Integração com IA.
+- Semana 9 finalizada: Projeções e Polish.
+- Próxima etapa planejada: Semana 10 — Testes e Deploy Final.
 
 ## Stack
 
@@ -92,6 +93,30 @@ Para produção do Asaas, use `ASAAS_ENVIRONMENT=production` e configure a chave
 - Pagamentos permitem ajustar data realizada e valor pago.
 - Pagamento antecipado entra no mês da data de pagamento em `Ganhos/Gastos`, mantendo a competência original da parcela em `installment_year` e `installment_month`.
 - A migration da etapa é `supabase/migrations/202609290004_create_financings.sql`.
+
+## IA Financeira
+
+- A rota principal fica em `/ia`.
+- A IA usa server functions e nunca recebe chaves no frontend.
+- O sistema calcula o diagnóstico financeiro antes da IA; a IA apenas comunica e organiza sugestões.
+- Dados sensíveis são sanitizados/anonimizados antes de qualquer chamada ao provider.
+- Providers suportados: Gemini como padrão e Groq como alternativa/fallback quando configurado.
+
+## Projeções
+
+- A rota principal fica em `/projecoes`.
+- A projeção é determinística e calculada em `src/lib/projections.ts`.
+- Considera lançamentos previstos/realizados, recorrências, orçamentos, meta de economia, financiamentos e média variável dos últimos 3 meses.
+- Não usa IA como fonte da verdade financeira e não cria tabela nova de projeções persistidas.
+- Dashboard e Planejamento possuem CTAs discretos para a tela de projeções.
+
+## Polish Visual Semana 9
+
+- `MonthPicker` e `DatePicker` próprios substituem campos nativos de mês/data nas rotas críticas.
+- Os painéis dos seletores renderizam via portal para evitar clipping em cards e modais.
+- A sidebar desktop é fixa no viewport para manter a navegação disponível em páginas longas.
+- No mobile, a navegação permanece via header sticky e bottom navigation fixa.
+- O botão de sair da sidebar foi redesenhado como `Encerrar sessão`, com ícone e tom rose discreto.
 
 ## Scripts
 

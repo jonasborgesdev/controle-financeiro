@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { DatePicker } from "@/components/date-picker";
+import { MonthPicker } from "@/components/month-picker";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,7 +19,6 @@ import {
   monthLabel,
   parseMonthKey,
   recurringRuleAppliesToMonth,
-  shiftMonth,
   summarizeEntries,
 } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
@@ -216,22 +218,12 @@ function PlanningPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="finance-glass-strong overflow-hidden rounded-[2rem] p-5 text-white sm:p-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Planejamento mensal</p>
-              <h2 className="mt-2 max-w-2xl text-3xl font-black tracking-[-0.05em] sm:text-5xl">Previsto, realizado e orçamento no mesmo lugar.</h2>
-              <p className="mt-3 max-w-xl text-sm text-slate-300">Use os fixos para gerar o mês, confirme o que virou real e acompanhe limites por classificação.</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-end">
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>Anterior</Button>
-                <Button type="button" variant="outline" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>Próximo</Button>
-              </div>
-              <Input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} />
-            </div>
+        <PageHero eyebrow="Planejamento mensal" title="Previsto, realizado e orçamento no mesmo lugar." description="Use os fixos para gerar o mês, confirme o que virou real e acompanhe limites por classificação.">
+          <div className="grid gap-4">
+            <MonthPicker label="Mês do planejamento" value={selectedMonth} onChange={setSelectedMonth} />
+            <Link to="/projecoes" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Ver projeção 3-6 meses</Link>
           </div>
-        </section>
+        </PageHero>
 
         {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/[0.10] p-4 text-sm text-rose-100">{error}</div> : null}
         {loading ? <p className="text-sm text-slate-400">Carregando planejamento...</p> : null}
@@ -375,8 +367,7 @@ function PlanningPage() {
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="goal-deadline">Prazo opcional</Label>
-            <Input id="goal-deadline" type="date" value={goalForm.deadline} onChange={(event) => setGoalForm({ ...goalForm, deadline: event.target.value })} />
+            <DatePicker id="goal-deadline" label="Prazo opcional" value={goalForm.deadline} onChange={(value) => setGoalForm({ ...goalForm, deadline: value })} />
           </div>
           <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar meta"}</Button>
         </form>

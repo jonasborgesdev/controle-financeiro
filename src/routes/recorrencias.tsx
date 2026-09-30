@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { MonthPicker } from "@/components/month-picker";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -227,19 +229,12 @@ function RecurringRulesPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <section className="finance-glass-strong overflow-hidden rounded-[2rem] p-5 text-white sm:p-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-cyan-200">Automação do Notion</p>
-              <h2 className="mt-2 max-w-2xl text-3xl font-black tracking-[-0.05em] sm:text-5xl">Recorrência cria lançamentos mensais.</h2>
-              <p className="mt-3 max-w-xl text-sm text-slate-300">Diferente da versão anterior, a regra não fica só como previsão solta: ela gera ganhos/gastos vinculados ao balanço de cada mês.</p>
-            </div>
-            <div className="grid gap-2 sm:flex">
+        <PageHero eyebrow="Automação do Notion" title="Recorrência cria lançamentos mensais." description="Diferente da versão anterior, a regra não fica só como previsão solta: ela gera ganhos/gastos vinculados ao balanço de cada mês.">
+            <div className="grid gap-2">
               <Button type="button" onClick={() => openNew("income")}>Nova receita fixa</Button>
               <Button type="button" variant="outline" onClick={() => openNew("expense")}>Nova despesa fixa</Button>
             </div>
-          </div>
-        </section>
+        </PageHero>
 
         <Card>
           <CardHeader>
@@ -305,12 +300,11 @@ function RecurringRulesPage() {
               <Input id="day" type="number" min="1" max="31" value={form.day_of_month} onChange={(event) => setForm({ ...form, day_of_month: event.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="start-month">Início</Label>
-              <Input id="start-month" type="month" value={form.start_month} onChange={(event) => setForm({ ...form, start_month: event.target.value })} required />
+              <MonthPicker id="start-month" label="Início" value={form.start_month} onChange={(value) => setForm({ ...form, start_month: value })} showArrows={false} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="end-month">Fim opcional</Label>
-              <Input id="end-month" type="month" value={form.end_month} onChange={(event) => setForm({ ...form, end_month: event.target.value })} />
+              <MonthPicker id="end-month" label="Fim opcional" value={form.end_month || form.start_month} onChange={(value) => setForm({ ...form, end_month: value })} showArrows={false} />
+              <button type="button" onClick={() => setForm({ ...form, end_month: "" })} className="text-xs font-semibold text-cyan-200 transition hover:text-cyan-100">Deixar sem data final</button>
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
