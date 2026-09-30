@@ -19,17 +19,19 @@ import {
   shiftMonth,
   summarizeEntries,
 } from "@/lib/finance";
+import { financingNextDueDate, monthlyFinancingCommitment } from "@/lib/financings";
 import { createClient } from "@/lib/supabase/client";
-import type { Account, Category, FinancialEntry, IntegrationSetting, SavingsGoal } from "@/types/database";
+import type { Account, Category, FinancialEntry, Financing, IntegrationSetting, SavingsGoal } from "@/types/database";
 
 const currentMonth = new Date().toISOString().slice(0, 7);
 const chartColors = ["#22d3ee", "#10b981", "#f5c76b", "#fb7185", "#38bdf8", "#94a3b8"];
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
 const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
-const balanceEntryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
+const balanceEntryColumns = entryColumns;
 const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
 const settingsColumns = "id,user_id,provider,enabled,environment,default_account_id,default_category_id,last_sync_at,created_at,updated_at";
+const financingColumns = "id,user_id,account_id,category_id,name,original_amount,installment_amount,total_installments,paid_installments,due_day,start_date,status,notes,created_at,updated_at";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
@@ -52,6 +54,7 @@ function DashboardPage() {
   const [monthEntries, setMonthEntries] = useState<FinancialEntry[]>([]);
   const [balanceEntries, setBalanceEntries] = useState<FinancialEntry[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [financings, setFinancings] = useState<Financing[]>([]);
   const [asaasSettings, setAsaasSettings] = useState<IntegrationSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,12 +65,13 @@ function DashboardPage() {
       setLoading(true);
       setError(null);
       const { startDate, endDate } = monthBounds(selectedMonth);
-      const [accountsResult, categoriesResult, monthEntriesResult, balanceEntriesResult, goalsResult, asaasSettingsResult] = await Promise.all([
+      const [accountsResult, categoriesResult, monthEntriesResult, balanceEntriesResult, goalsResult, financingsResult, asaasSettingsResult] = await Promise.all([
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).eq("is_active", true).order("name"),
         supabase.from("financial_entries").select(entryColumns).gte("due_date", startDate).lte("due_date", endDate).order("due_date", { ascending: false }),
         supabase.from("financial_entries").select(balanceEntryColumns).eq("status", "paid").order("due_date", { ascending: false }),
         supabase.from("savings_goals").select(goalColumns).eq("is_active", true).order("created_at", { ascending: false }).limit(1),
+        supabase.from("financings").select(financingColumns).eq("status", "active").order("due_day"),
         supabase.from("integration_settings").select(settingsColumns).eq("provider", "asaas").maybeSingle(),
       ]);
 
@@ -81,6 +85,7 @@ function DashboardPage() {
       setMonthEntries(monthEntriesResult.data ?? []);
       setBalanceEntries(balanceEntriesResult.data ?? []);
       setGoals(goalsResult.data ?? []);
+      setFinancings(financingsResult.error ? [] : financingsResult.data ?? []);
       setAsaasSettings(asaasSettingsResult.data as IntegrationSetting | null);
       setLoading(false);
     };
@@ -98,6 +103,8 @@ function DashboardPage() {
   const recentEntries = latestEntries(filteredMonthEntries, 5);
   const activeGoal = activeSavingsGoal(goals);
   const goalProgress = activeGoal && activeGoal.monthly_target > 0 ? Math.max(0, Math.min(100, (summary.actualBalance / Number(activeGoal.monthly_target)) * 100)) : 0;
+  const financingCommitment = monthlyFinancingCommitment(financings);
+  const nextFinancingDue = financings.map((financing) => ({ financing, dueDate: financingNextDueDate(financing) })).filter((item) => item.dueDate).sort((first, second) => String(first.dueDate).localeCompare(String(second.dueDate)))[0] ?? null;
   const hasEntries = filteredMonthEntries.length > 0;
   const { year, month } = parseMonthKey(selectedMonth);
   const monthTitle = monthLabel(year, month);
@@ -197,6 +204,27 @@ function DashboardPage() {
                 <PlanningSummaryChart summary={summary} activeGoal={activeGoal} goalProgress={goalProgress} />
               </CardContent>
             </Card>
+
+            {financings.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <CardTitle>Financiamentos</CardTitle>
+                      <CardDescription>Resumo discreto dos contratos ativos e vencimentos.</CardDescription>
+                    </div>
+                    <Link to="/financiamentos" className="rounded-xl bg-cyan-400/12 px-4 py-2 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/18">Abrir financiamentos</Link>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-rose-300/20 bg-rose-400/[0.08] p-4 text-rose-100"><p className="text-xs uppercase tracking-[0.12em] opacity-70">Comprometido/mês</p><p className="mt-2 text-xl font-black">{formatCurrency(financingCommitment)}</p></div>
+                    <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-cyan-100"><p className="text-xs uppercase tracking-[0.12em] opacity-70">Ativos</p><p className="mt-2 text-xl font-black">{financings.length}</p></div>
+                    <div className="rounded-2xl border border-[#f5c76b]/20 bg-[#f5c76b]/[0.08] p-4 text-[#fff3c4]"><p className="text-xs uppercase tracking-[0.12em] opacity-70">Próximo vencimento</p><p className="mt-2 text-xl font-black">{nextFinancingDue?.dueDate ? new Date(`${nextFinancingDue.dueDate}T00:00:00`).toLocaleDateString("pt-BR") : "Sem vencimento"}</p></div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
 
             <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
               <Card>

@@ -96,9 +96,30 @@ export interface FinancialEntry {
   actual_amount: number | null
   due_date: string
   paid_date: string | null
-  source: 'manual' | 'recurring' | 'imported' | 'asaas'
+  source: 'manual' | 'recurring' | 'imported' | 'asaas' | 'financing'
   recurring_rule_id: string | null
   external_id: string | null
+  financing_id?: string | null
+  installment_year?: number | null
+  installment_month?: number | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Financing {
+  id: string
+  user_id: string
+  account_id: string | null
+  category_id: string | null
+  name: string
+  original_amount: number
+  installment_amount: number
+  total_installments: number
+  paid_installments: number
+  due_day: number
+  start_date: string
+  status: 'active' | 'finished' | 'inactive'
   notes: string | null
   created_at: string
   updated_at: string
@@ -233,8 +254,14 @@ export interface Database {
       }
       financial_entries: {
         Row: FinancialEntry
-        Insert: Omit<FinancialEntry, 'id' | 'created_at' | 'updated_at'>
+        Insert: Omit<FinancialEntry, 'id' | 'created_at' | 'updated_at' | 'financing_id' | 'installment_year' | 'installment_month'> & Partial<Pick<FinancialEntry, 'financing_id' | 'installment_year' | 'installment_month'>>
         Update: Partial<Omit<FinancialEntry, 'id' | 'created_at' | 'updated_at'>>
+        Relationships: []
+      }
+      financings: {
+        Row: Financing
+        Insert: Omit<Financing, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Financing, 'id' | 'created_at' | 'updated_at'>>
         Relationships: []
       }
       recurring_rules: {

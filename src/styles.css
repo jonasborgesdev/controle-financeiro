@@ -194,6 +194,11 @@
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
   :root {
     color-scheme: light;
   }
@@ -216,6 +221,11 @@
     padding: 0 !important;
   }
 
+  body {
+    font-size: 11pt !important;
+    line-height: 1.35 !important;
+  }
+
   .finance-glass,
   .finance-glass-strong,
   .finance-panel,
@@ -231,6 +241,8 @@
 
   .report-print-area {
     color: #0f172a !important;
+    display: block !important;
+    width: 100% !important;
   }
 
   .report-print-area * {
@@ -258,9 +270,35 @@
     border-color: #cbd5e1 !important;
   }
 
+  .report-print-area table {
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  .report-print-area thead {
+    display: table-header-group;
+  }
+
+  .report-print-area tr {
+    page-break-inside: avoid;
+  }
+
+  .report-print-area th,
+  .report-print-area td {
+    padding: 8px 10px !important;
+  }
+
+  .report-print-area h1,
+  .report-print-area h2,
+  .report-print-area h3 {
+    page-break-after: avoid;
+  }
+
   .report-print-area section,
   .report-print-area article,
-  .report-print-area div {
+  .report-print-area [data-slot="card"],
+  .print-card {
     break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

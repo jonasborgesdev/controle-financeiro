@@ -14,6 +14,7 @@ import { Route as AsaasRouteImport } from './routes/asaas'
 import { Route as CategoriasRouteImport } from './routes/categorias'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ContasRouteImport } from './routes/contas'
+import { Route as FinanciamentosRouteImport } from './routes/financiamentos'
 import { Route as ImportacaoRouteImport } from './routes/importacao'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
@@ -44,6 +45,11 @@ const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
 const ContasRoute = ContasRouteImport.update({
   id: '/contas',
   path: '/contas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanciamentosRoute = FinanciamentosRouteImport.update({
+  id: '/financiamentos',
+  path: '/financiamentos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImportacaoRoute = ImportacaoRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/categorias': typeof CategoriasRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/contas': typeof ContasRoute
+  '/financiamentos': typeof FinanciamentosRoute
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/categorias': typeof CategoriasRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/contas': typeof ContasRoute
+  '/financiamentos': typeof FinanciamentosRoute
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/categorias': typeof CategoriasRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/contas': typeof ContasRoute
+  '/financiamentos': typeof FinanciamentosRoute
   '/importacao': typeof ImportacaoRoute
   '/login': typeof LoginRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/categorias'
     | '/configuracoes'
     | '/contas'
+    | '/financiamentos'
     | '/importacao'
     | '/login'
     | '/planejamento'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/categorias'
     | '/configuracoes'
     | '/contas'
+    | '/financiamentos'
     | '/importacao'
     | '/login'
     | '/planejamento'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/categorias'
     | '/configuracoes'
     | '/contas'
+    | '/financiamentos'
     | '/importacao'
     | '/login'
     | '/planejamento'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   CategoriasRoute: typeof CategoriasRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   ContasRoute: typeof ContasRoute
+  FinanciamentosRoute: typeof FinanciamentosRoute
   ImportacaoRoute: typeof ImportacaoRoute
   LoginRoute: typeof LoginRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
@@ -208,6 +221,13 @@ declare module '@tanstack/react-router' {
       path: '/contas'
       fullPath: '/contas'
       preLoaderRoute: typeof ContasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/financiamentos': {
+      id: '/financiamentos'
+      path: '/financiamentos'
+      fullPath: '/financiamentos'
+      preLoaderRoute: typeof FinanciamentosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/importacao': {
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   CategoriasRoute: CategoriasRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
   ContasRoute: ContasRoute,
+  FinanciamentosRoute: FinanciamentosRoute,
   ImportacaoRoute: ImportacaoRoute,
   LoginRoute: LoginRoute,
   PlanejamentoRoute: PlanejamentoRoute,
