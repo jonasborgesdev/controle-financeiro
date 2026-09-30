@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import { Printer } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { entryActualAmount, formatCurrency, isFinanceClassification, monthBounds
 import { financingEntriesForMonth } from "@/lib/financings";
 import { buildAnnualReport, buildMonthlyReport, type ReportDistributionRow } from "@/lib/reports";
 import { createClient } from "@/lib/supabase/client";
-import type { Account, Category, FinancialEntry, SavingsGoal } from "@/types/database";
+import type { Account, Category, FinancialEntry, IntegrationSetting, SavingsGoal } from "@/types/database";
 
 type ReportMode = "monthly" | "annual";
 
@@ -20,6 +20,7 @@ const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
 const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
+const settingsColumns = "id,user_id,provider,enabled,environment,default_account_id,default_category_id,last_sync_at,created_at,updated_at";
 const chartColors = ["#22d3ee", "#10b981", "#f5c76b", "#fb7185", "#38bdf8", "#94a3b8"];
 
 export const Route = createFileRoute("/relatorios")({
@@ -44,6 +45,7 @@ function ReportsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [aiSettings, setAiSettings] = useState<IntegrationSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,12 +60,13 @@ function ReportsPage() {
         : { startDate: `${selectedYear}-01-01`, endDate: `${selectedYear}-12-31` };
 
       const previousYearPeriod = { startDate: `${selectedYear - 1}-01-01`, endDate: `${selectedYear - 1}-12-31` };
-      const [entriesResult, previousYearEntriesResult, accountsResult, categoriesResult, goalsResult] = await Promise.all([
+      const [entriesResult, previousYearEntriesResult, accountsResult, categoriesResult, goalsResult, aiSettingsResult] = await Promise.all([
         supabase.from("financial_entries").select(entryColumns).gte("due_date", period.startDate).lte("due_date", period.endDate).order("due_date"),
         mode === "annual" ? supabase.from("financial_entries").select(entryColumns).gte("due_date", previousYearPeriod.startDate).lte("due_date", previousYearPeriod.endDate).order("due_date") : Promise.resolve({ data: [], error: null }),
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).eq("is_active", true).order("type").order("name"),
         supabase.from("savings_goals").select(goalColumns).eq("is_active", true).order("created_at", { ascending: false }).limit(1),
+        supabase.from("integration_settings").select(settingsColumns).eq("provider", "ai").maybeSingle(),
       ]);
 
       const requestError = entriesResult.error ?? previousYearEntriesResult.error ?? accountsResult.error ?? categoriesResult.error ?? goalsResult.error;
@@ -73,6 +76,7 @@ function ReportsPage() {
       setAccounts(accountsResult.data ?? []);
       setCategories(categoriesResult.data ?? []);
       setGoals(goalsResult.data ?? []);
+      setAiSettings(aiSettingsResult.data as IntegrationSetting | null);
       setLoading(false);
     };
 
@@ -135,6 +139,7 @@ function ReportsPage() {
                 <Printer className="size-4" aria-hidden="true" />
                 Exportar / imprimir PDF
               </Button>
+              {aiSettings?.enabled ? <Link to="/ia" search={mode === "monthly" ? { type: "monthly", month: selectedMonth, year: undefined } : { type: "annual", month: undefined, year: selectedYear }} className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">{mode === "monthly" ? "Analisar este mês com IA" : "Analisar este ano com IA"}</Link> : null}
               <p className="text-xs leading-5 text-slate-400 sm:hidden">No celular, o navegador/sistema abrirá a impressão ou opção de salvar em PDF.</p>
             </div>
           </div>
