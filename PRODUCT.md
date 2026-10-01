@@ -49,4 +49,7 @@ Documentação principal em `docs/planejamento/`. O controle atual existe no Not
 - Semana 6: concluída com integração Asaas opcional.
 - Semana 7: concluída com dashboard anual, relatórios e exportação via impressão/PDF.
 - Semana 7.1: concluída com módulo real de financiamentos, pagamento antecipado por data efetiva e melhorias finais de exportação.
-- Semana 8: próxima etapa planejada, integração com IA.
+- Semana 8: concluída com integração com IA.
+- Semana 9: concluída com projeções e polish visual.
+- Lista compacta de lançamentos: concluída com `/transacoes` em formato extrato agrupado por data.
+- Próxima etapa: Semana 10 — Testes e Deploy Final.

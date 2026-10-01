@@ -37,7 +37,12 @@ O app usa a direção `Private Finance OS`: dark-first, premium, mobile-first e 
 - Botão primário emerald; ações de planejamento usam cyan; alertas/metas usam gold; destrutivo usa rose.
 - Ação de sair usa rose de forma discreta, com ícone e integração visual à sidebar, sem competir com ações financeiras principais.
 - Cards financeiros importantes exibem valores com peso alto, tracking negativo leve e metadados discretos.
-- Listas mobile devem separar título, valor, metadados, status e ações em blocos tocáveis, evitando cards densos demais.
+- A lista de lançamentos (`/transacoes`) usa linhas compactas agrupadas por data efetiva, sem cards grandes.
+- Cada linha tem checkbox de status, descrição em até 2 linhas, conta/classificação como metadados, badge discreta de status e valor com acento emerald (ganho) ou rose (gasto).
+- No mobile o valor fica na linha de metadados à direita; no desktop há coluna própria de valor à direita.
+- Ações secundárias ficam no menu `...` (pontos verticais no mobile), controlado com apenas um aberto por vez.
+- A diferenciação ganho/gasto e realizado/previsto usa pílula lateral arredondada e tons de fundo sutis.
+- O card da listagem usa `overflow-visible` para o menu de ações não ser cortado.
 
 ## Estados
 
