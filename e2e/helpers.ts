@@ -151,9 +151,108 @@ export async function expectFloatingDatePanel(page: Page) {
   expect(result.zIndex).toBeGreaterThanOrEqual(1000);
 }
 
+export async function seedCompactEntryList(context: Awaited<ReturnType<typeof createE2EUser>>, suffix = `${Date.now()}`) {
+  const today = new Date();
+  const otherDate = new Date(today);
+  otherDate.setDate(today.getDate() === 1 ? today.getDate() + 1 : today.getDate() - 1);
+  const monthValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const todayValue = formatDate(today);
+  const otherDateValue = formatDate(otherDate);
+
+  const { data: balance, error: balanceError } = await context.admin
+    .from("monthly_balances")
+    .upsert({ user_id: context.user.id, year: today.getFullYear(), month: today.getMonth() + 1, label: today.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) }, { onConflict: "user_id,year,month" })
+    .select("id")
+    .single();
+  if (balanceError || !balance) throw new Error(`Falha ao criar competência E2E: ${balanceError?.message ?? "sem retorno"}`);
+
+  const { data: account, error: accountError } = await context.admin
+    .from("accounts")
+    .insert({ user_id: context.user.id, name: `Nubank E2E ${suffix}`, type: "personal", bank: "Nubank", description: null, initial_balance: 0, is_active: true, color: null, icon: null })
+    .select("id,name")
+    .single();
+  if (accountError || !account) throw new Error(`Falha ao criar conta E2E: ${accountError?.message ?? "sem retorno"}`);
+
+  const { data: categories, error: categoryError } = await context.admin
+    .from("categories")
+    .insert([
+      { user_id: context.user.id, name: `Gastos variáveis E2E ${suffix}`, type: "expense", parent_id: null, icon: null, color: "#fb7185", is_default: false, is_active: true },
+      { user_id: context.user.id, name: `Ganhos variáveis E2E ${suffix}`, type: "income", parent_id: null, icon: null, color: "#34d399", is_default: false, is_active: true },
+    ])
+    .select("id,name,type");
+  if (categoryError || !categories) throw new Error(`Falha ao criar classificações E2E: ${categoryError?.message ?? "sem retorno"}`);
+
+  const expenseCategory = categories.find((category) => category.type === "expense");
+  const incomeCategory = categories.find((category) => category.type === "income");
+  const plannedDescription = `Internet E2E ${suffix}`;
+  const incomeDescription = `Cliente João E2E ${suffix}`;
+  const expenseDescription = `Mercado E2E ${suffix}`;
+
+  const { error: entriesError } = await context.admin.from("financial_entries").insert([
+    {
+      user_id: context.user.id,
+      monthly_balance_id: balance.id,
+      account_id: account.id,
+      category_id: expenseCategory?.id ?? null,
+      entry_type: "expense",
+      status: "planned",
+      description: plannedDescription,
+      expected_amount: 119.9,
+      actual_amount: null,
+      due_date: todayValue,
+      paid_date: null,
+      source: "manual",
+      recurring_rule_id: null,
+      external_id: null,
+      notes: null,
+    },
+    {
+      user_id: context.user.id,
+      monthly_balance_id: balance.id,
+      account_id: account.id,
+      category_id: expenseCategory?.id ?? null,
+      entry_type: "expense",
+      status: "paid",
+      description: expenseDescription,
+      expected_amount: 186.3,
+      actual_amount: 186.3,
+      due_date: todayValue,
+      paid_date: todayValue,
+      source: "manual",
+      recurring_rule_id: null,
+      external_id: null,
+      notes: null,
+    },
+    {
+      user_id: context.user.id,
+      monthly_balance_id: balance.id,
+      account_id: account.id,
+      category_id: incomeCategory?.id ?? null,
+      entry_type: "income",
+      status: "paid",
+      description: incomeDescription,
+      expected_amount: 1500,
+      actual_amount: 1500,
+      due_date: otherDateValue,
+      paid_date: otherDateValue,
+      source: "manual",
+      recurring_rule_id: null,
+      external_id: null,
+      notes: null,
+    },
+  ]);
+  if (entriesError) throw new Error(`Falha ao criar lançamentos E2E: ${entriesError.message}`);
+
+  return { monthValue, plannedDescription, incomeDescription, expenseDescription };
+}
+
 function parsePtBrMonthTitle(title: string) {
   const normalized = title.toLowerCase().trim();
   const [monthName = "", yearText = ""] = normalized.split(" de ");
   const months = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
   return { month: months.indexOf(monthName) + 1, year: Number(yearText) };
+}
+
+function formatDate(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }

@@ -178,6 +178,46 @@ export function latestEntries(entries: FinancialEntry[], limit = 5) {
     .slice(0, limit);
 }
 
+export function sortEntriesByEffectiveDate(entries: FinancialEntry[]) {
+  return [...entries].sort((first, second) => {
+    const dateDiff = new Date(entryEffectiveDate(second)).getTime() - new Date(entryEffectiveDate(first)).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    const createdDiff = new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
+    if (createdDiff !== 0) return createdDiff;
+    return second.id.localeCompare(first.id);
+  });
+}
+
+export function groupEntriesByEffectiveDate(entries: FinancialEntry[]) {
+  return sortEntriesByEffectiveDate(entries).reduce<Array<{ date: string; items: FinancialEntry[] }>>((groups, entry) => {
+    const effectiveDate = entryEffectiveDate(entry);
+    const current = groups.find((group) => group.date === effectiveDate);
+    if (current) current.items.push(entry);
+    else groups.push({ date: effectiveDate, items: [entry] });
+    return groups;
+  }, []);
+}
+
+export function compactEntryDateLabel(dateValue: string, referenceDateValue = new Date().toISOString().slice(0, 10)) {
+  const date = new Date(`${dateValue}T00:00:00`);
+  const reference = new Date(`${referenceDateValue}T00:00:00`);
+  const diffDays = Math.round((reference.getTime() - date.getTime()) / 86_400_000);
+  const shortDate = date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
+  if (diffDays === 0) return `Hoje, ${shortDate}`;
+  if (diffDays === 1) return `Ontem, ${shortDate}`;
+  return shortDate;
+}
+
+export function entryStatusPatch(entry: Pick<FinancialEntry, "status" | "expected_amount" | "actual_amount" | "paid_date">, todayValue = new Date().toISOString().slice(0, 10)) {
+  if (entry.status === "paid") return { status: "planned" as const };
+
+  return {
+    status: "paid" as const,
+    actual_amount: entry.actual_amount ?? Number(entry.expected_amount),
+    paid_date: entry.paid_date ?? todayValue,
+  };
+}
+
 export function recurringRuleAppliesToMonth(rule: RecurringRule, year: number, month: number) {
   if (!rule.is_active) return false;
   const current = year * 100 + month;

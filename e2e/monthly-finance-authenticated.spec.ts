@@ -19,6 +19,8 @@ test.describe("fluxo financeiro autenticado", () => {
   test("cria conta e lançamento pago pela interface", async ({ page }) => {
     const accountName = `Conta E2E ${Date.now()}`;
     const entryDescription = `Receita E2E ${Date.now()}`;
+    const now = new Date();
+    const entryDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
     await login(page, context.email, context.password);
 
@@ -49,15 +51,15 @@ test.describe("fluxo financeiro autenticado", () => {
     await page.getByLabel("Descrição").fill(entryDescription);
     await page.getByLabel("Valor previsto").fill("1000");
     await page.getByLabel("Valor real").fill("950");
-    await chooseDate(page, "due", "2026-09-05");
-    await chooseDate(page, "paid-date", "2026-09-05");
+    await chooseDate(page, "due", entryDate);
+    await chooseDate(page, "paid-date", entryDate);
     await page.getByLabel("Conta").selectOption({ label: accountName });
     await page.getByRole("button", { name: "Salvar lançamento" }).click();
 
-    const entryCard = page.getByText(entryDescription).locator("xpath=ancestor::div[contains(@class, 'rounded-2xl')][1]");
-    await expect(entryCard).toBeVisible();
-    await expect(entryCard.getByText("Previsto: R$ 1.000,00")).toBeVisible();
-    await expect(entryCard.getByText("Real: R$ 950,00")).toBeVisible();
+    const entryRow = page.getByText(entryDescription).locator("xpath=ancestor::*[@data-testid='entry-list-item'][1]");
+    await expect(entryRow).toBeVisible();
+    await expect(entryRow.getByText("Realizado", { exact: true })).toBeVisible();
+    await expect(entryRow.getByText(/\+R\$\s*950,00/).last()).toBeVisible();
   });
 
   test("cria conta com saldo inicial negativo pela interface", async ({ page }) => {

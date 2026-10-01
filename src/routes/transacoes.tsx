@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Pencil, Trash2 } from "lucide-react";
+import { MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { DatePicker } from "@/components/date-picker";
 import { MonthPicker } from "@/components/month-picker";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { entryEffectiveDate, formatCurrency, isFinanceClassification, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
+import { compactEntryDateLabel, entryDisplayAmount, entryEffectiveDate, entryStatusPatch, formatCurrency, groupEntriesByEffectiveDate, isFinanceClassification, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, Financing, MonthlyBalance } from "@/types/database";
 
@@ -77,13 +77,13 @@ function EntriesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
   const visibleCategories = categories.filter((category) => category.type === form.entry_type && isFinanceClassification(category, user.id));
   const summary = summarizeEntries(entries);
-  const incomeEntries = sortEntriesByRecentFirst(entries.filter((entry) => entry.entry_type === "income"));
-  const expenseEntries = sortEntriesByRecentFirst(entries.filter((entry) => entry.entry_type === "expense"));
+  const groupedEntries = groupEntriesByEffectiveDate(entries);
 
   const loadData = async () => {
     setLoading(true);
@@ -149,6 +149,7 @@ function EntriesPage() {
   };
 
   const openEdit = (entry: FinancialEntry) => {
+    setOpenActionMenuId(null);
     setEditingId(entry.id);
     setForm({
       entry_type: entry.entry_type,
@@ -208,6 +209,7 @@ function EntriesPage() {
   };
 
   const deleteEntry = async (entry: FinancialEntry) => {
+    setOpenActionMenuId(null);
     if (!window.confirm("Tem certeza que deseja excluir este lançamento?")) return;
     const { error } = await supabase.from("financial_entries").delete().eq("id", entry.id);
     if (error) setError(error.message);
@@ -215,13 +217,13 @@ function EntriesPage() {
   };
 
   const toggleStatus = async (entry: FinancialEntry) => {
+    setOpenActionMenuId(null);
     setSaving(true);
     setError(null);
-    const nextStatus = entry.status === "paid" ? "planned" : "paid";
-    const monthlyBalance = await ensureMonthlyBalance(nextStatus === "paid" ? today : entry.due_date);
-    const payload = nextStatus === "paid"
-      ? { status: nextStatus, actual_amount: Number(entry.actual_amount ?? entry.expected_amount), paid_date: today, monthly_balance_id: monthlyBalance.id }
-      : { status: nextStatus, actual_amount: null, paid_date: null, monthly_balance_id: monthlyBalance.id };
+    const statusPatch = entryStatusPatch(entry, today);
+    const effectiveDate = statusPatch.status === "paid" ? statusPatch.paid_date : entry.due_date;
+    const monthlyBalance = await ensureMonthlyBalance(effectiveDate);
+    const payload = { ...statusPatch, monthly_balance_id: monthlyBalance.id };
     const { error: updateError } = await supabase.from("financial_entries").update(payload).eq("id", entry.id);
     if (updateError) setError(updateError.message);
     if (!updateError && entry.financing_id) {
@@ -232,7 +234,7 @@ function EntriesPage() {
         .single();
       if (financing) {
         const current = financing as Financing;
-        const paidInstallments = nextStatus === "paid"
+        const paidInstallments = statusPatch.status === "paid"
           ? Math.min(current.total_installments, current.paid_installments + 1)
           : Math.max(0, current.paid_installments - 1);
         const status = paidInstallments >= current.total_installments ? "finished" : current.status === "finished" ? "active" : current.status;
@@ -256,7 +258,7 @@ function EntriesPage() {
 
         <SummaryCharts summary={summary} />
 
-        <Card>
+        <Card className="overflow-visible">
           <CardHeader>
             <CardTitle>Lançamentos de {monthLabel(parseMonthKey(selectedMonth).year, parseMonthKey(selectedMonth).month)}</CardTitle>
             <CardDescription>{entries.length} ganho(s)/gasto(s) no mês selecionado</CardDescription>
@@ -264,33 +266,22 @@ function EntriesPage() {
           <CardContent>
             {error ? <div className="mb-4 rounded-xl border border-rose-300/20 bg-rose-400/[0.10] p-3 text-sm text-rose-100">{error}</div> : null}
             {loading ? <p className="text-sm text-slate-400">Carregando lançamentos...</p> : null}
-            <div className="grid gap-5">
-              <EntryGroup
-                title="Ganhos"
-                description={`${incomeEntries.length} entrada(s) no mês`}
-                entries={incomeEntries}
-                emptyText="Nenhum ganho neste mês."
-                tone="income"
-                accountById={accountById}
-                categoryById={categoryById}
-                saving={saving}
-                onToggleStatus={toggleStatus}
-                onEdit={openEdit}
-                onDelete={deleteEntry}
-              />
-              <EntryGroup
-                title="Gastos"
-                description={`${expenseEntries.length} saída(s) no mês`}
-                entries={expenseEntries}
-                emptyText="Nenhum gasto neste mês."
-                tone="expense"
-                accountById={accountById}
-                categoryById={categoryById}
-                saving={saving}
-                onToggleStatus={toggleStatus}
-                onEdit={openEdit}
-                onDelete={deleteEntry}
-              />
+            <div className="grid gap-4" data-testid="compact-entry-list">
+              {groupedEntries.map((group) => (
+                <EntryListGroup
+                  key={group.date}
+                  date={group.date}
+                  entries={group.items}
+                  accountById={accountById}
+                  categoryById={categoryById}
+                  saving={saving}
+                  openActionMenuId={openActionMenuId}
+                  onToggleActionMenu={(entryId) => setOpenActionMenuId((current) => current === entryId ? null : entryId)}
+                  onToggleStatus={toggleStatus}
+                  onEdit={openEdit}
+                  onDelete={deleteEntry}
+                />
+              ))}
               {!loading && entries.length === 0 ? <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Você ainda não lançou nada neste mês. Use o botão de novo lançamento para começar.</p> : null}
             </div>
           </CardContent>
@@ -450,168 +441,137 @@ function BalanceBarCard({ planned, actual, max }: { planned: number; actual: num
   );
 }
 
-function EntryGroup({
-  title,
-  description,
+function EntryListGroup({
+  date,
   entries,
-  emptyText,
-  tone,
   accountById,
   categoryById,
   saving,
+  openActionMenuId,
+  onToggleActionMenu,
   onToggleStatus,
   onEdit,
   onDelete,
 }: {
-  title: string;
-  description: string;
+  date: string;
   entries: FinancialEntry[];
-  emptyText: string;
-  tone: "income" | "expense";
   accountById: Map<string, Account>;
   categoryById: Map<string, Category>;
   saving: boolean;
+  openActionMenuId: string | null;
+  onToggleActionMenu: (entryId: string) => void;
   onToggleStatus: (entry: FinancialEntry) => void;
   onEdit: (entry: FinancialEntry) => void;
   onDelete: (entry: FinancialEntry) => void;
 }) {
-  const totalExpected = entries.reduce((total, entry) => total + Number(entry.expected_amount), 0);
-  const totalActual = entries.filter((entry) => entry.status === "paid").reduce((total, entry) => total + Number(entry.actual_amount ?? entry.expected_amount), 0);
-  const wrapperClassName = tone === "income" ? "border-emerald-300/18 bg-emerald-400/[0.06]" : "border-rose-300/18 bg-rose-400/[0.06]";
-  const valueClassName = tone === "income" ? "text-emerald-300" : "text-rose-300";
-  const groupedEntries = sortEntriesByRecentFirst(entries).reduce<Array<{ date: string; items: FinancialEntry[] }>>((groups, entry) => {
-    const effectiveDate = entryEffectiveDate(entry);
-    const current = groups.find((group) => group.date === effectiveDate);
-    if (current) current.items.push(entry);
-    else groups.push({ date: effectiveDate, items: [entry] });
-    return groups;
-  }, []);
-
   return (
-    <section className={`rounded-2xl border p-3 sm:p-4 ${wrapperClassName}`}>
-      <div className="mb-3 flex items-start justify-between gap-3 px-1">
-        <div>
-          <h3 className="font-bold text-slate-50">{title}</h3>
-          <p className="text-sm text-slate-400">{description}</p>
-        </div>
-        <div className="text-right">
-          <p className={`font-black ${valueClassName}`}>{formatCurrency(totalActual)}</p>
-          <p className="text-xs text-slate-400">de {formatCurrency(totalExpected)}</p>
-        </div>
-      </div>
-      <div className="grid gap-4">
-        {groupedEntries.map((group) => (
-          <div key={group.date} className="grid gap-2.5">
-            <p className="px-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{new Date(`${group.date}T00:00:00`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "short" })}</p>
-            {group.items.map((entry) => (
-              <EntryListItem
-                key={entry.id}
-                entry={entry}
-                tone={tone}
-                accountById={accountById}
-                categoryById={categoryById}
-                saving={saving}
-                onToggleStatus={onToggleStatus}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
-            ))}
-          </div>
+    <section className="grid gap-2" data-testid="entry-date-group">
+      <h3 className="px-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{compactEntryDateLabel(date, today)}</h3>
+      <div className="overflow-visible rounded-2xl border border-white/10 bg-slate-950/25 shadow-lg shadow-slate-950/15">
+        {entries.map((entry) => (
+          <EntryListItem
+            key={entry.id}
+            entry={entry}
+            accountById={accountById}
+            categoryById={categoryById}
+            saving={saving}
+            actionMenuOpen={openActionMenuId === entry.id}
+            onToggleActionMenu={() => onToggleActionMenu(entry.id)}
+            onToggleStatus={onToggleStatus}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         ))}
-        {entries.length === 0 ? <p className="rounded-xl border border-white/10 bg-white/[0.05] p-3 text-sm text-slate-400">{emptyText}</p> : null}
       </div>
     </section>
   );
 }
 
-function sortEntriesByRecentFirst(entries: FinancialEntry[]) {
-  return [...entries].sort((first, second) => {
-    const dateDiff = new Date(entryEffectiveDate(second)).getTime() - new Date(entryEffectiveDate(first)).getTime();
-    if (dateDiff !== 0) return dateDiff;
-    return new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
-  });
-}
-
 function EntryListItem({
   entry,
-  tone,
   accountById,
   categoryById,
   saving,
+  actionMenuOpen,
+  onToggleActionMenu,
   onToggleStatus,
   onEdit,
   onDelete,
 }: {
   entry: FinancialEntry;
-  tone: "income" | "expense";
   accountById: Map<string, Account>;
   categoryById: Map<string, Category>;
   saving: boolean;
+  actionMenuOpen: boolean;
+  onToggleActionMenu: () => void;
   onToggleStatus: (entry: FinancialEntry) => void;
   onEdit: (entry: FinancialEntry) => void;
   onDelete: (entry: FinancialEntry) => void;
 }) {
-  const paidTone = tone === "income" ? "emerald" : "red";
-  const statusClassName = entry.status === "paid"
-    ? paidTone === "emerald" ? "bg-emerald-400/15 text-emerald-200" : "bg-rose-400/15 text-rose-200"
-    : "bg-[#f5c76b]/15 text-[#f5c76b]";
-  const typeClassName = tone === "income" ? "bg-emerald-400/12 text-emerald-200" : "bg-rose-400/12 text-rose-200";
-  const itemClassName = entry.status === "paid"
-    ? paidTone === "emerald" ? "border-emerald-300/18 bg-emerald-400/[0.07] shadow-emerald-950/10" : "border-rose-300/18 bg-rose-400/[0.07] shadow-rose-950/10"
-    : "border-white/10 bg-white/[0.05] shadow-slate-950/15";
-  const statusButtonClassName = entry.status === "paid"
-    ? paidTone === "emerald"
-      ? "w-full border-emerald-300/20 bg-emerald-400/12 text-emerald-100 hover:bg-emerald-400/18 sm:w-auto sm:min-w-36"
-      : "w-full border-rose-300/20 bg-rose-400/12 text-rose-100 hover:bg-rose-400/18 sm:w-auto sm:min-w-36"
-    : "w-full sm:w-auto sm:min-w-36";
+  const accountName = entry.account_id ? accountById.get(entry.account_id)?.name ?? "Conta" : "Sem conta";
+  const categoryName = entry.category_id ? categoryById.get(entry.category_id)?.name ?? "Classificação" : "Sem classificação";
+  const isIncome = entry.entry_type === "income";
+  const amount = entryDisplayAmount(entry);
+  const isPaid = entry.status === "paid";
+  const statusClassName = isPaid ? "bg-emerald-400/10 text-emerald-200 ring-1 ring-emerald-300/15" : "bg-[#f5c76b]/10 text-[#f5c76b] ring-1 ring-[#f5c76b]/15";
+  const valueClassName = isIncome ? "text-emerald-300" : "text-rose-300";
+  const rowToneClassName = isIncome
+    ? isPaid ? "bg-emerald-400/[0.055]" : "bg-emerald-400/[0.025]"
+    : isPaid ? "bg-rose-400/[0.055]" : "bg-rose-400/[0.025]";
+  const accentBarClassName = isIncome
+    ? isPaid ? "bg-emerald-300/80" : "bg-emerald-300/40"
+    : isPaid ? "bg-rose-300/80" : "bg-rose-300/40";
+  const checkboxClassName = isPaid ? "accent-emerald-400" : "accent-[#f5c76b]";
 
   return (
-    <div className={`rounded-2xl border p-3 shadow-sm sm:p-4 ${itemClassName}`}>
-      <div className="grid gap-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="break-words text-base font-semibold leading-5 text-slate-50">{entry.description}</p>
-            <p className="mt-1 text-sm leading-5 text-slate-400">{entry.account_id ? accountById.get(entry.account_id)?.name ?? "Conta" : "Sem conta"}</p>
-          </div>
-          <div className="shrink-0 text-right">
-            <p className={tone === "income" ? "text-lg font-black tracking-[-0.03em] text-emerald-300 sm:text-xl" : "text-lg font-black tracking-[-0.03em] text-rose-300 sm:text-xl"}>{tone === "income" ? "+" : "-"}{formatCurrency(Number(entry.actual_amount ?? entry.expected_amount))}</p>
-            <p className="text-xs text-slate-400">{entry.status === "paid" ? "Realizado" : "Previsto"}</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <span className={`rounded-full px-2 py-1 text-xs ${statusClassName}`}>{statusLabel[entry.status]}</span>
-          <span className={`rounded-full px-2 py-1 text-xs ${typeClassName}`}>{entry.entry_type === "income" ? "Ganho" : "Gasto"}</span>
-          <span className="rounded-full bg-white/[0.06] px-2 py-1 text-xs text-slate-300">{entry.category_id ? categoryById.get(entry.category_id)?.name ?? "Categoria" : "Sem categoria"}</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/30 p-3 text-sm">
-          <div>
-            <p className="text-xs text-slate-500">Valor previsto</p>
-            <p className="font-semibold text-slate-200">Previsto: {formatCurrency(Number(entry.expected_amount))}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-slate-500">Valor real</p>
-            <p className="font-semibold text-slate-200">Real: {entry.status === "paid" ? formatCurrency(Number(entry.actual_amount ?? entry.expected_amount)) : "-"}</p>
-          </div>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
-          <Button type="button" variant="outline" onClick={() => onToggleStatus(entry)} disabled={saving} className={statusButtonClassName}>
-            {entry.status === "paid" ? "Voltar previsto" : "Marcar realizado"}
-          </Button>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-            <Button type="button" variant="outline" aria-label={`Editar ${entry.description}`} onClick={() => onEdit(entry)} className="gap-2">
-              <Pencil className="size-4" aria-hidden="true" />
-              Editar
-            </Button>
-            <Button type="button" variant="destructive" aria-label={`Excluir ${entry.description}`} onClick={() => onDelete(entry)} className="gap-2">
-              <Trash2 className="size-4" aria-hidden="true" />
-              Excluir
-            </Button>
-          </div>
-        </div>
+    <div className={`group relative grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-1.5 border-b border-b-white/8 px-2 py-2.5 pl-3.5 first:rounded-t-2xl last:rounded-b-2xl last:border-b-0 sm:min-h-[3.75rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto] sm:gap-3 sm:px-3 sm:pl-4 ${rowToneClassName}`} data-testid="entry-list-item">
+      <span aria-hidden="true" className={`absolute top-2.5 bottom-2.5 left-1.5 w-1 rounded-full ${accentBarClassName}`} />
+      <div className="col-start-1 row-start-1 row-span-2 flex items-center justify-center sm:row-span-1">
+        <input
+          type="checkbox"
+          checked={entry.status === "paid"}
+          disabled={saving}
+          onChange={() => onToggleStatus(entry)}
+          aria-label={entry.status === "paid" ? `Voltar ${entry.description} para previsto` : `Marcar ${entry.description} como realizado`}
+          className={`size-5 rounded-md border-white/20 bg-slate-950 text-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 ${checkboxClassName}`}
+        />
       </div>
+      <button type="button" onClick={() => onEdit(entry)} className="col-start-2 row-start-1 row-span-2 min-w-0 text-left focus-visible:rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 sm:row-span-1">
+        <p className="break-words text-[0.85rem] font-semibold leading-5 text-slate-50 line-clamp-2 sm:text-[0.95rem]">{entry.description}</p>
+        <div className="mt-0.5 flex min-w-0 items-center gap-x-1.5 text-[0.7rem] leading-4 text-slate-400 sm:text-xs">
+          <span className="min-w-0 flex-1 truncate">{accountName} · {categoryName}</span>
+          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.62rem] font-semibold sm:px-2 sm:text-[0.68rem] ${statusClassName}`}>{statusLabel[entry.status]}</span>
+          <span className={`shrink-0 text-xs font-black tracking-[-0.03em] sm:hidden ${valueClassName}`}>{isIncome ? "+" : "-"}{formatCurrency(amount)}</span>
+        </div>
+      </button>
+      <div className="hidden min-w-28 text-right sm:col-start-3 sm:row-start-1 sm:block">
+        <p className={`text-sm font-black tracking-[-0.03em] ${valueClassName}`}>{isIncome ? "+" : "-"}{formatCurrency(amount)}</p>
+      </div>
+      <div className="col-start-3 row-start-1 row-span-2 flex items-center sm:col-start-4 sm:row-span-1">
+        <EntryActionsMenu entry={entry} open={actionMenuOpen} onToggle={onToggleActionMenu} onEdit={onEdit} onDelete={onDelete} />
+      </div>
+    </div>
+  );
+}
+
+function EntryActionsMenu({ entry, open, onToggle, onEdit, onDelete }: { entry: FinancialEntry; open: boolean; onToggle: () => void; onEdit: (entry: FinancialEntry) => void; onDelete: (entry: FinancialEntry) => void }) {
+  return (
+    <div className="relative flex justify-end">
+      <button type="button" className="flex size-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-slate-300 transition hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 sm:size-9" aria-label={`Ações do lançamento ${entry.description}`} aria-expanded={open} onClick={onToggle}>
+        <MoreVertical className="size-4" aria-hidden="true" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-full z-30 mt-2 grid min-w-36 overflow-hidden rounded-xl border border-white/10 bg-slate-950 p-1 shadow-2xl shadow-slate-950/50">
+          <button type="button" className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-200 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300" onClick={() => onEdit(entry)}>
+            <Pencil className="size-4" aria-hidden="true" />
+            Editar
+          </button>
+          <button type="button" className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-rose-200 hover:bg-rose-400/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-300" onClick={() => onDelete(entry)}>
+            <Trash2 className="size-4" aria-hidden="true" />
+            Excluir
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
