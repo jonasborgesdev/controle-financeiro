@@ -29,7 +29,6 @@ const chartColors = ["#22d3ee", "#10b981", "#f5c76b", "#fb7185", "#38bdf8", "#94
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
 const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
-const balanceEntryColumns = entryColumns;
 const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
 const settingsColumns = "id,user_id,provider,enabled,environment,default_account_id,default_category_id,last_sync_at,created_at,updated_at";
 const financingColumns = "id,user_id,account_id,category_id,name,original_amount,installment_amount,total_installments,paid_installments,due_day,start_date,status,notes,created_at,updated_at";
@@ -72,8 +71,8 @@ function DashboardPage() {
       const [accountsResult, categoriesResult, monthEntriesResult, balanceEntriesResult, goalsResult, financingsResult, asaasSettingsResult, aiSettingsResult, aiAnalysisResult] = await Promise.all([
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).eq("is_active", true).order("name"),
-        supabase.from("financial_entries").select(entryColumns).gte("due_date", startDate).lte("due_date", endDate).order("due_date", { ascending: false }),
-        supabase.from("financial_entries").select(balanceEntryColumns).eq("status", "paid").order("due_date", { ascending: false }),
+        supabase.from("financial_entries").select(entryColumns).eq("user_id", user.id).gte("due_date", startDate).lte("due_date", endDate).order("due_date", { ascending: false }).limit(1000),
+        supabase.from("financial_entries").select("id,account_id,entry_type,status,expected_amount,actual_amount").eq("user_id", user.id).eq("status", "paid").order("due_date", { ascending: false }).limit(5000),
         supabase.from("savings_goals").select(goalColumns).eq("is_active", true).order("created_at", { ascending: false }).limit(1),
         supabase.from("financings").select(financingColumns).eq("status", "active").order("due_day"),
         supabase.from("integration_settings").select(settingsColumns).eq("provider", "asaas").maybeSingle(),
@@ -89,7 +88,7 @@ function DashboardPage() {
       setAccounts(accountsResult.data ?? []);
       setCategories(categoriesResult.data ?? []);
       setMonthEntries(monthEntriesResult.data ?? []);
-      setBalanceEntries(balanceEntriesResult.data ?? []);
+      setBalanceEntries((balanceEntriesResult.data ?? []) as unknown as FinancialEntry[]);
       setGoals(goalsResult.data ?? []);
       setFinancings(financingsResult.error ? [] : financingsResult.data ?? []);
       setAsaasSettings(asaasSettingsResult.data as IntegrationSetting | null);
@@ -99,7 +98,7 @@ function DashboardPage() {
     };
 
     void loadDashboard();
-  }, [selectedMonth]);
+  }, [selectedMonth, user.id]);
 
   const selectedAccounts = selectedAccountId === "all" ? accounts : accounts.filter((account) => account.id === selectedAccountId);
   const filteredMonthEntries = selectedAccountId === "all" ? monthEntries : monthEntries.filter((entry) => entry.account_id === selectedAccountId);

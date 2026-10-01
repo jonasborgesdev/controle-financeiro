@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { fetchWithTimeout, isValidPeriodRange, tryAcquireActionLock } from "@/lib/security";
 import type { Account, Category, FinancialEntry, IntegrationSetting } from "@/types/database";
+
+const ASAAS_TIMEOUT_MS = 15000;
+const ASAAS_SYNC_LOCK_TTL_MS = 60000;
+const ASAAS_MAX_OFFSET = 500;
 
 export type AsaasEnvironment = "sandbox" | "production";
 export type AsaasPaymentStatus = "RECEIVED" | "CONFIRMED" | string;
@@ -147,9 +152,9 @@ export const testAsaasConnection = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireAuthenticatedUser(data.accessToken);
     const apiKey = getAsaasApiKey();
-    const response = await fetch(`${asaasBaseUrl(data.environment)}/v3/payments?limit=1&offset=0`, {
+    const response = await fetchWithTimeout(`${asaasBaseUrl(data.environment)}/v3/payments?limit=1&offset=0`, {
       headers: asaasHeaders(apiKey),
-    });
+    }, ASAAS_TIMEOUT_MS);
     if (!response.ok) throw new Error(await asaasErrorMessage(response));
     return { ok: true, message: `Conexão com Asaas ${data.environment === "production" ? "produção" : "sandbox"} funcionando.` };
   });
@@ -158,10 +163,16 @@ export const syncAsaasPayments = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { accessToken: string; periodStart: string; periodEnd: string })
   .handler(async ({ data }) => {
     const userId = await requireAuthenticatedUser(data.accessToken);
+    if (!isValidPeriodRange(data.periodStart, data.periodEnd)) {
+      throw new Error("Período inválido para sincronizar. Use um intervalo de até 12 meses.");
+    }
+    if (!tryAcquireActionLock(`asaas:${userId}:${data.periodStart}:${data.periodEnd}`, ASAAS_SYNC_LOCK_TTL_MS)) {
+      throw new Error("Já existe uma sincronização em andamento. Aguarde um minuto e tente de novo.");
+    }
     const supabase = createServerSupabase();
     const { data: settings, error: settingsError } = await supabase
       .from("integration_settings")
-      .select("*")
+      .select("id,user_id,provider,enabled,environment,default_account_id,default_category_id,last_sync_at,created_at,updated_at")
       .eq("user_id", userId)
       .eq("provider", "asaas")
       .maybeSingle();
@@ -192,14 +203,14 @@ async function listReceivedPayments(apiKey: string, environment: AsaasEnvironmen
   for (const status of statuses) {
     let offset = 0;
     let hasMore = true;
-    while (hasMore && offset < 500) {
+    while (hasMore && offset < ASAAS_MAX_OFFSET) {
       const url = new URL(`${asaasBaseUrl(environment)}/v3/payments`);
       url.searchParams.set("status", status);
       url.searchParams.set("paymentDate[ge]", periodStart);
       url.searchParams.set("paymentDate[le]", periodEnd);
       url.searchParams.set("limit", "100");
       url.searchParams.set("offset", String(offset));
-      const response = await fetch(url, { headers: asaasHeaders(apiKey) });
+      const response = await fetchWithTimeout(url, { headers: asaasHeaders(apiKey) }, ASAAS_TIMEOUT_MS);
       if (!response.ok) throw new Error(await asaasErrorMessage(response));
       const body = await response.json() as AsaasListResponse;
       for (const payment of body.data ?? []) byId.set(payment.id, payment);
@@ -214,7 +225,7 @@ async function fetchCustomerNames(apiKey: string, environment: AsaasEnvironment,
   const ids = Array.from(new Set(payments.map((payment) => payment.customer).filter((id): id is string => Boolean(id)))).slice(0, 50);
   const result = new Map<string, string>();
   await Promise.all(ids.map(async (id) => {
-    const response = await fetch(`${asaasBaseUrl(environment)}/v3/customers/${id}`, { headers: asaasHeaders(apiKey) });
+    const response = await fetchWithTimeout(`${asaasBaseUrl(environment)}/v3/customers/${id}`, { headers: asaasHeaders(apiKey) }, ASAAS_TIMEOUT_MS);
     if (!response.ok) return;
     const customer = await response.json() as AsaasCustomer;
     if (customer.name) result.set(id, customer.name);

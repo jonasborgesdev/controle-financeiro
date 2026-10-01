@@ -48,7 +48,7 @@ function CategoriesPage() {
   const loadCategories = async () => {
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase.from("categories").select("*").eq("is_active", true).order("name");
+    const { data, error } = await supabase.from("categories").select("id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at").eq("is_active", true).order("name");
     if (error) setError(error.message);
     setCategories(data ?? []);
     setLoading(false);

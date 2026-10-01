@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { buildAnnualReport, buildMonthlyReport } from "@/lib/reports";
 import { formatCurrency, monthBounds } from "@/lib/finance";
+import { isValidPeriodRange, tryAcquireActionLock } from "@/lib/security";
 import type { Account, AiAnalysis, Category, FinancialEntry, Financing, IntegrationSetting, Json, SavingsGoal } from "@/types/database";
 
 export type AiAnalysisType = "monthly" | "annual" | "savings" | "planning";
@@ -338,7 +339,7 @@ export const listAiAnalyses = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const userId = await requireAuthenticatedUser(data.accessToken);
     const supabase = createServerSupabase();
-    const { data: rows, error } = await supabase.from("ai_analysis").select(analysisColumns).eq("user_id", userId).order("created_at", { ascending: false }).limit(data.limit ?? 8);
+    const { data: rows, error } = await supabase.from("ai_analysis").select(analysisColumns).eq("user_id", userId).order("created_at", { ascending: false }).limit(Math.min(data.limit ?? 8, 20));
     if (error) throw new Error(error.message);
     return { analyses: (rows ?? []) as AiAnalysis[] };
   });
@@ -347,6 +348,15 @@ export const generateAiAnalysis = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as { accessToken: string; analysisType: AiAnalysisType; periodStart: string; periodEnd: string; force?: boolean })
   .handler(async ({ data }) => {
     const userId = await requireAuthenticatedUser(data.accessToken);
+    if (data.analysisType !== "monthly" && data.analysisType !== "annual" && data.analysisType !== "savings" && data.analysisType !== "planning") {
+      throw new Error("Tipo de análise inválido.");
+    }
+    if (!isValidPeriodRange(data.periodStart, data.periodEnd, 400)) {
+      throw new Error("Período inválido para análise. Use um intervalo de até 13 meses.");
+    }
+    if (!tryAcquireActionLock(`ia:${userId}:${data.analysisType}:${data.periodStart}:${data.periodEnd}:${data.force ? "force" : "cached"}`, 60000)) {
+      throw new Error("Já existe uma análise em andamento. Aguarde um minuto e tente de novo.");
+    }
     const provider = getAiProviderConfig();
     if (!provider.configured || !provider.apiKey) throw new Error("API key de IA não configurada no servidor.");
     const supabase = createServerSupabase();
