@@ -3,13 +3,16 @@ import {
   accountBalancesFromEntries,
   accountBalanceFromEntries,
   accountProjectedBalanceFromEntries,
+  compactEntryDateLabel,
   dueDateForMonth,
   entryEffectiveDate,
   entryDisplayAmount,
+  entryStatusPatch,
   entryActualSignedAmount,
   entryExpectedSignedAmount,
   entryProjectedSignedAmount,
   expensesByCategory,
+  groupEntriesByEffectiveDate,
   latestEntries,
   isFinanceClassification,
   monthBounds,
@@ -18,6 +21,7 @@ import {
   recurringRuleAppliesToMonth,
   shiftMonth,
   summarizeEntries,
+  sortEntriesByEffectiveDate,
 } from "@/lib/finance";
 import type { Account, Category, FinancialEntry, RecurringRule } from "@/types/database";
 
@@ -221,6 +225,49 @@ describe("finance", () => {
     ];
 
     expect(latestEntries(entries, 2).map((entry) => entry.id)).toEqual(["latest-date", "latest-created"]);
+  });
+
+  it("agrupa lancamentos por data efetiva em ordem desc", () => {
+    const entries: FinancialEntry[] = [
+      { ...baseEntry, id: "older", due_date: "2026-09-29", created_at: "2026-09-01T10:00:00Z" },
+      { ...baseEntry, id: "newer-created", due_date: "2026-10-01", created_at: "2026-09-01T12:00:00Z" },
+      { ...baseEntry, id: "same-day", due_date: "2026-10-01", created_at: "2026-09-01T11:00:00Z" },
+      { ...baseEntry, id: "paid-yesterday", status: "paid", due_date: "2026-09-01", paid_date: "2026-09-30", created_at: "2026-09-01T13:00:00Z" },
+    ];
+
+    expect(sortEntriesByEffectiveDate(entries).map((entry) => entry.id)).toEqual(["newer-created", "same-day", "paid-yesterday", "older"]);
+    expect(groupEntriesByEffectiveDate(entries).map((group) => ({ date: group.date, ids: group.items.map((entry) => entry.id) }))).toEqual([
+      { date: "2026-10-01", ids: ["newer-created", "same-day"] },
+      { date: "2026-09-30", ids: ["paid-yesterday"] },
+      { date: "2026-09-29", ids: ["older"] },
+    ]);
+  });
+
+  it("formata cabecalhos compactos de data", () => {
+    expect(compactEntryDateLabel("2026-10-01", "2026-10-01")).toBe("Hoje, 01 de out");
+    expect(compactEntryDateLabel("2026-09-30", "2026-10-01")).toBe("Ontem, 30 de set");
+    expect(compactEntryDateLabel("2026-09-10", "2026-10-01")).toBe("10 de set");
+  });
+
+  it("monta payload para alternar previsto para realizado preenchendo campos ausentes", () => {
+    expect(entryStatusPatch({ ...baseEntry, status: "planned", actual_amount: null, paid_date: null }, "2026-10-01")).toEqual({
+      status: "paid",
+      actual_amount: 1000,
+      paid_date: "2026-10-01",
+    });
+  });
+
+  it("preserva valor real e data realizada ao marcar realizado quando ja existem", () => {
+    expect(entryStatusPatch({ ...baseEntry, status: "planned", actual_amount: 950, paid_date: "2026-09-28" }, "2026-10-01")).toEqual({
+      status: "paid",
+      actual_amount: 950,
+      paid_date: "2026-09-28",
+    });
+  });
+
+  it("volta realizado para previsto sem apagar campos internos", () => {
+    expect(entryStatusPatch({ ...baseEntry, status: "paid", actual_amount: 950, paid_date: "2026-09-28" }, "2026-10-01")).toEqual({ status: "planned" });
+    expect(entryEffectiveDate({ ...baseEntry, status: "planned", due_date: "2026-09-10", paid_date: "2026-09-28" })).toBe("2026-09-10");
   });
 
   it("aplica recorrencia respeitando inicio, fim e ativo", () => {
