@@ -9,8 +9,9 @@ Sistema web mobile-first de controle financeiro pessoal/empresarial.
 - Semana 7.1 finalizada: Financiamentos e Exportação Melhorada.
 - Semana 8 finalizada: Integração com IA.
 - Semana 9 finalizada: Projeções e Polish.
+- Semana 10.1 finalizada: Segurança e Performance (hardening RLS, server-only Asaas/IA, limites upload, queries com range, headers em `vercel.json`).
 - Lista compacta de lançamentos finalizada: `/transacoes` em formato extrato agrupado por data.
-- Próxima etapa planejada: Semana 10 — Testes e Deploy Final.
+- Semana 10 — Testes e Deploy Final: validações verdes (typecheck, 74 testes, 15 E2E, lint 0 erros, build OK), PR `development` → `main` aberto para deploy final.
 
 ## Stack
 
