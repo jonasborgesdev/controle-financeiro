@@ -121,7 +121,7 @@ function PlanningPage() {
 
   const ensureMonthlyBalance = async () => {
     const payload = { user_id: user.id, year, month, label: monthLabel(year, month) };
-    const { data, error: balanceError } = await supabase.from("monthly_balances").upsert(payload, { onConflict: "user_id,year,month" }).select("*").single();
+    const { data, error: balanceError } = await supabase.from("monthly_balances").upsert(payload, { onConflict: "user_id,year,month" }).select("id,user_id,year,month,label,created_at,updated_at").single();
     if (balanceError) throw balanceError;
     return data as MonthlyBalance;
   };

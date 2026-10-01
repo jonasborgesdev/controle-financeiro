@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { dueDateForMonth, formatCurrency, isFinanceClassification, monthLabel, parseMonthKey } from "@/lib/finance";
+import { NAME_MAX_LENGTH, NOTES_MAX_LENGTH, parseMoneyAmount, sanitizeText } from "@/lib/security";
 import { financingNextDueDate, financingProgressPercent, financingRemainingAmount, financingRemainingInstallments, hasFinancingInstallmentForMonth, monthlyFinancingCommitment } from "@/lib/financings";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, Financing, MonthlyBalance } from "@/types/database";
@@ -122,7 +123,7 @@ function FinancingsPage() {
     const existing = balances.find((balance) => balance.year === balanceYear && balance.month === balanceMonth);
     if (existing) return existing;
     const payload = { user_id: user.id, year: balanceYear, month: balanceMonth, label: monthLabel(balanceYear, balanceMonth) };
-    const { data, error: balanceError } = await supabase.from("monthly_balances").upsert(payload, { onConflict: "user_id,year,month" }).select("*").single();
+    const { data, error: balanceError } = await supabase.from("monthly_balances").upsert(payload, { onConflict: "user_id,year,month" }).select("id,user_id,year,month,label,created_at,updated_at").single();
     if (balanceError) throw balanceError;
     return data as MonthlyBalance;
   };
@@ -156,12 +157,13 @@ function FinancingsPage() {
     setSaving(true);
     setError(null);
     try {
-      const originalAmount = Number(form.original_amount || 0);
-      const installmentAmount = Number(form.installment_amount || 0);
+      const name = sanitizeText(form.name, NAME_MAX_LENGTH);
+      const originalAmount = parseMoneyAmount(form.original_amount);
+      const installmentAmount = parseMoneyAmount(form.installment_amount);
       const totalInstallments = Number(form.total_installments || 0);
       const paidInstallments = Number(form.paid_installments || 0);
       const dueDay = Number(form.due_day || 0);
-      if (!form.name.trim() || !form.account_id || !form.category_id || originalAmount <= 0 || installmentAmount <= 0 || totalInstallments <= 0 || dueDay < 1 || dueDay > 31) {
+      if (name.length < 2 || !form.account_id || !form.category_id || originalAmount === null || installmentAmount === null || !Number.isInteger(totalInstallments) || totalInstallments <= 0 || totalInstallments > 600 || dueDay < 1 || dueDay > 31) {
         throw new Error("Preencha nome, conta, classificação, valores, parcelas e vencimento corretamente.");
       }
       if (paidInstallments < 0 || paidInstallments > totalInstallments) throw new Error("Parcelas pagas não pode passar do total de parcelas.");
@@ -170,7 +172,7 @@ function FinancingsPage() {
         user_id: user.id,
         account_id: form.account_id,
         category_id: form.category_id,
-        name: form.name.trim(),
+        name,
         original_amount: originalAmount,
         installment_amount: installmentAmount,
         total_installments: totalInstallments,
@@ -178,7 +180,7 @@ function FinancingsPage() {
         due_day: dueDay,
         start_date: form.start_date,
         status: form.status,
-        notes: form.notes.trim() || null,
+        notes: form.notes.trim() ? sanitizeText(form.notes, NOTES_MAX_LENGTH) : null,
       };
 
       const result = editingId ? await supabase.from("financings").update(payload).eq("id", editingId) : await supabase.from("financings").insert(payload);

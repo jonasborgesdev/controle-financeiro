@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { dueDateForMonth, formatCurrency, isFinanceClassification, monthLabel, monthKey, parseMonthKey, recurringRuleAppliesToMonth } from "@/lib/finance";
+import { DESCRIPTION_MAX_LENGTH, NOTES_MAX_LENGTH, parseMoneyAmount, sanitizeText } from "@/lib/security";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, MonthlyBalance, RecurringRule } from "@/types/database";
 
@@ -75,9 +76,9 @@ function RecurringRulesPage() {
     setLoading(true);
     setError(null);
     const [rulesResult, accountsResult, categoriesResult] = await Promise.all([
-      supabase.from("recurring_rules").select("*").order("is_active", { ascending: false }).order("description"),
-      supabase.from("accounts").select("*").eq("is_active", true).order("name"),
-      supabase.from("categories").select("*").order("type").order("name"),
+      supabase.from("recurring_rules").select("id,user_id,account_id,category_id,entry_type,description,amount,day_of_month,start_year,start_month,end_year,end_month,is_active,notes,created_at,updated_at").order("is_active", { ascending: false }).order("description"),
+      supabase.from("accounts").select("id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at").eq("is_active", true).order("name"),
+      supabase.from("categories").select("id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at").order("type").order("name"),
     ]);
 
     if (rulesResult.error) setError(rulesResult.error.message);
@@ -104,7 +105,7 @@ function RecurringRulesPage() {
     const { data, error } = await supabase
       .from("monthly_balances")
       .upsert(payload, { onConflict: "user_id,year,month" })
-      .select("*")
+      .select("id,user_id,year,month,label,created_at,updated_at")
       .single();
 
     if (error) throw error;
@@ -177,25 +178,31 @@ function RecurringRulesPage() {
     try {
       const start = parseMonthKey(form.start_month);
       const end = form.end_month ? parseMonthKey(form.end_month) : { year: null, month: null };
+      const description = sanitizeText(form.description, DESCRIPTION_MAX_LENGTH);
+      if (description.length < 2) throw new Error("Descreva a recorrência com pelo menos 2 caracteres.");
+      const amount = parseMoneyAmount(form.amount);
+      if (amount === null) throw new Error("Informe um valor válido maior que zero.");
+      const dayOfMonth = Number(form.day_of_month);
+      if (!Number.isInteger(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) throw new Error("Dia do mês inválido (1 a 31).");
       const payload = {
         user_id: user.id,
         account_id: form.account_id || null,
         category_id: form.category_id || null,
         entry_type: form.entry_type,
-        description: form.description.trim(),
-        amount: Number(form.amount),
-        day_of_month: Number(form.day_of_month),
+        description,
+        amount,
+        day_of_month: dayOfMonth,
         start_year: start.year,
         start_month: start.month,
         end_year: end.year,
         end_month: end.month,
         is_active: true,
-        notes: form.notes.trim() || null,
+        notes: form.notes.trim() ? sanitizeText(form.notes, NOTES_MAX_LENGTH) : null,
       };
 
       const result = editingId
-        ? await supabase.from("recurring_rules").update(payload).eq("id", editingId).select("*").single()
-        : await supabase.from("recurring_rules").insert(payload).select("*").single();
+        ? await supabase.from("recurring_rules").update(payload).eq("id", editingId).select("id,user_id,account_id,category_id,entry_type,description,amount,day_of_month,start_year,start_month,end_year,end_month,is_active,notes,created_at,updated_at").single()
+        : await supabase.from("recurring_rules").insert(payload).select("id,user_id,account_id,category_id,entry_type,description,amount,day_of_month,start_year,start_month,end_year,end_month,is_active,notes,created_at,updated_at").single();
 
       if (result.error) throw result.error;
       await generateEntriesForRule(result.data as RecurringRule);

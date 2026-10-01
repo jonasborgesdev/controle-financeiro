@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { compactEntryDateLabel, entryDisplayAmount, entryEffectiveDate, entryStatusPatch, formatCurrency, groupEntriesByEffectiveDate, isFinanceClassification, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
+import { DESCRIPTION_MAX_LENGTH, NOTES_MAX_LENGTH, isValidDateString, parseMoneyAmount, sanitizeText } from "@/lib/security";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, Financing, MonthlyBalance } from "@/types/database";
 
@@ -93,7 +94,11 @@ function EntriesPage() {
     const endDate = `${selectedMonth}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
     try {
       const [entriesResult, balancesResult, accountsResult, categoriesResult] = await Promise.all([
-        supabase.from("financial_entries").select(entryColumns),
+        supabase.from("financial_entries").select(entryColumns)
+          .eq("user_id", user.id)
+          .or(`and(due_date.gte.${startDate},due_date.lte.${endDate}),and(paid_date.gte.${startDate},paid_date.lte.${endDate})`)
+          .order("due_date", { ascending: false })
+          .limit(1000),
         supabase.from("monthly_balances").select(balanceColumns).eq("year", year).eq("month", month),
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).order("type").order("name"),
@@ -135,7 +140,7 @@ function EntriesPage() {
     const { data, error } = await supabase
       .from("monthly_balances")
       .upsert(payload, { onConflict: "user_id,year,month" })
-      .select("*")
+      .select(balanceColumns)
       .single();
 
     if (error) throw error;
@@ -172,10 +177,16 @@ function EntriesPage() {
     setError(null);
 
     try {
+      const description = sanitizeText(form.description, DESCRIPTION_MAX_LENGTH);
+      if (description.length < 2) throw new Error("Descreva o lançamento com pelo menos 2 caracteres.");
+      const expectedAmount = parseMoneyAmount(form.expected_amount);
+      if (expectedAmount === null) throw new Error("Informe um valor previsto válido maior que zero.");
+      const actualAmount = form.status === "paid" ? parseMoneyAmount(form.actual_amount || form.expected_amount) : null;
+      if (form.status === "paid" && actualAmount === null) throw new Error("Informe um valor real válido maior que zero.");
+      if (!isValidDateString(form.due_date)) throw new Error("Data prevista inválida.");
+      if (form.status === "paid" && form.paid_date && !isValidDateString(form.paid_date)) throw new Error("Data realizada inválida.");
       const effectiveDate = form.status === "paid" ? form.paid_date || form.due_date : form.due_date;
       const monthlyBalance = await ensureMonthlyBalance(effectiveDate);
-      const expectedAmount = Number(form.expected_amount || 0);
-      const actualAmount = form.status === "paid" ? Number(form.actual_amount || form.expected_amount || 0) : null;
       const payload = {
         user_id: user.id,
         monthly_balance_id: monthlyBalance.id,
@@ -183,7 +194,7 @@ function EntriesPage() {
         category_id: form.category_id || null,
         entry_type: form.entry_type,
         status: form.status,
-        description: form.description.trim(),
+        description,
         expected_amount: expectedAmount,
         actual_amount: actualAmount,
         due_date: form.due_date,
@@ -191,7 +202,7 @@ function EntriesPage() {
         source: "manual" as const,
         recurring_rule_id: null,
         external_id: null,
-        notes: form.notes.trim() || null,
+        notes: form.notes.trim() ? sanitizeText(form.notes, NOTES_MAX_LENGTH) : null,
       };
 
       const result = editingId
@@ -308,7 +319,7 @@ function EntriesPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="description">Descrição</Label>
-            <Input id="description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} required />
+            <Input id="description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} required maxLength={DESCRIPTION_MAX_LENGTH} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -346,7 +357,7 @@ function EntriesPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="notes">Observações</Label>
-            <Input id="notes" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
+            <Input id="notes" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} maxLength={NOTES_MAX_LENGTH} />
           </div>
           <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar lançamento"}</Button>
         </form>

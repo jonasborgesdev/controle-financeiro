@@ -63,8 +63,8 @@ function ReportsPage() {
 
       const previousYearPeriod = { startDate: `${selectedYear - 1}-01-01`, endDate: `${selectedYear - 1}-12-31` };
       const [entriesResult, previousYearEntriesResult, accountsResult, categoriesResult, goalsResult, aiSettingsResult] = await Promise.all([
-        supabase.from("financial_entries").select(entryColumns).gte("due_date", period.startDate).lte("due_date", period.endDate).order("due_date"),
-        mode === "annual" ? supabase.from("financial_entries").select(entryColumns).gte("due_date", previousYearPeriod.startDate).lte("due_date", previousYearPeriod.endDate).order("due_date") : Promise.resolve({ data: [], error: null }),
+        supabase.from("financial_entries").select(entryColumns).gte("due_date", period.startDate).lte("due_date", period.endDate).order("due_date").limit(3000),
+        mode === "annual" ? supabase.from("financial_entries").select(entryColumns).gte("due_date", previousYearPeriod.startDate).lte("due_date", previousYearPeriod.endDate).order("due_date").limit(3000) : Promise.resolve({ data: [], error: null }),
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).eq("is_active", true).order("type").order("name"),
         supabase.from("savings_goals").select(goalColumns).eq("is_active", true).order("created_at", { ascending: false }).limit(1),

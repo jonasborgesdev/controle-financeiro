@@ -53,7 +53,7 @@ function AccountsPage() {
     setLoading(true);
     setError(null);
     try {
-      const accountsResult = await supabase.from("accounts").select("*").order("is_active", { ascending: false }).order("name");
+      const accountsResult = await supabase.from("accounts").select("id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at").order("is_active", { ascending: false }).order("name");
       if (accountsResult.error) {
         setError(accountsResult.error.message);
         setAccounts([]);
@@ -63,9 +63,9 @@ function AccountsPage() {
 
       setLoading(false);
 
-      const entriesResult = await supabase.from("financial_entries").select("*");
+      const entriesResult = await supabase.from("financial_entries").select("id,account_id,entry_type,status,expected_amount,actual_amount").eq("user_id", user.id).order("due_date", { ascending: false }).limit(5000);
       if (entriesResult.error) setError(entriesResult.error.message);
-      else setEntries(entriesResult.data ?? []);
+      else setEntries((entriesResult.data ?? []) as unknown as FinancialEntry[]);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Erro ao carregar contas.");
       setLoading(false);

@@ -3,18 +3,31 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-export async function extractPdfText(file: File) {
+export const PDF_MAX_PAGES = 50;
+
+export async function extractPdfText(file: File, maxPages = PDF_MAX_PAGES) {
   const data = await file.arrayBuffer();
   const document = await pdfjs.getDocument({ data }).promise;
-  const pages: string[] = [];
+  try {
+    const totalPages = Math.min(document.numPages, maxPages);
+    const pages: string[] = [];
 
-  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-    const page = await document.getPage(pageNumber);
-    const content = await page.getTextContent();
-    pages.push(reconstructPdfTextFromItems(content.items));
+    for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
+      pages.push(reconstructPdfTextFromItems(content.items));
+      page.cleanup();
+    }
+
+    if (document.numPages > maxPages) {
+      pages.push(`[PDF truncado: ${document.numPages} páginas, lidas as primeiras ${maxPages}.]`);
+    }
+
+    return pages.join("\n");
+  } finally {
+    const destroyable = document as unknown as { destroy?: () => Promise<void> | void };
+    await destroyable.destroy?.();
   }
-
-  return pages.join("\n");
 }
 
 type PositionedTextItem = {

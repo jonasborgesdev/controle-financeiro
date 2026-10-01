@@ -9,7 +9,9 @@ Sistema web mobile-first de controle financeiro pessoal/empresarial.
 - Semana 7.1 finalizada: Financiamentos e Exportação Melhorada.
 - Semana 8 finalizada: Integração com IA.
 - Semana 9 finalizada: Projeções e Polish.
-- Próxima etapa planejada: Semana 10 — Testes e Deploy Final.
+- Semana 10.1 finalizada: Segurança e Performance (hardening RLS, server-only Asaas/IA, limites upload, queries com range, headers em `vercel.json`).
+- Lista compacta de lançamentos finalizada: `/transacoes` em formato extrato agrupado por data.
+- Semana 10 — Testes e Deploy Final: validações verdes (typecheck, 74 testes, 15 E2E, lint 0 erros, build OK), PR `development` → `main` aberto para deploy final.
 
 ## Stack
 
@@ -118,6 +120,15 @@ Para produção do Asaas, use `ASAAS_ENVIRONMENT=production` e configure a chave
 - No mobile, a navegação permanece via header sticky e bottom navigation fixa.
 - O botão de sair da sidebar foi redesenhado como `Encerrar sessão`, com ícone e tom rose discreto.
 
+## Lançamentos (Ganhos/Gastos)
+
+- A rota principal fica em `/transacoes`.
+- A listagem usa formato extrato compacto agrupado por data efetiva (`Hoje`, `Ontem`, `30 set`…), em vez de cards grandes.
+- Checkbox por linha alterna `Previsto`/`Realizado`; marcar como realizado preenche `actual_amount` e `paid_date` quando vazios; voltar para previsto preserva esses campos internamente.
+- Tocar na linha abre a edição; o menu `...` concentra as ações secundárias `Editar` e `Excluir`, com apenas um aberto por vez.
+- Ganhos usam acento emerald e gastos usam acento rose; o status aparece em badge discreta.
+- Filtros por mês, resumos e modal de criação/edição foram preservados.
+
 ## Scripts
 
 - `npm run dev`: ambiente local
@@ -125,6 +136,8 @@ Para produção do Asaas, use `ASAAS_ENVIRONMENT=production` e configure a chave
 - `npm run preview`: preview do build
 - `npm run lint`: lint
 - `npm run typecheck`: checagem TypeScript
+- `npm run test`: unitários, integração e tela (Vitest)
+- `npm run test:e2e`: ponta a ponta autenticado (Playwright)
 
 ## Banco de Dados
 

@@ -48,7 +48,7 @@ function ProjectionsPage() {
       const endDate = `${futureEnd}-${String(new Date(Number(futureEnd.slice(0, 4)), Number(futureEnd.slice(5, 7)), 0).getDate()).padStart(2, "0")}`;
 
       const [entriesResult, accountsResult, categoriesResult, rulesResult, budgetsResult, goalsResult, financingsResult] = await Promise.all([
-        supabase.from("financial_entries").select(entryColumns).lte("due_date", endDate).order("due_date"),
+        supabase.from("financial_entries").select(entryColumns).gte("due_date", `${pastStart}-01`).lte("due_date", endDate).order("due_date").limit(3000),
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).eq("is_active", true).order("type").order("name"),
         supabase.from("recurring_rules").select(ruleColumns).eq("is_active", true).order("description"),

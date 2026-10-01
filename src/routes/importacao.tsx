@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency, isFinanceClassification, monthLabel, parseMonthKey } from "@/lib/finance";
 import { importSummary, markDuplicates, parseStatement, suggestCategoryId, type ImportBank, type ImportFileType, type ReviewTransaction } from "@/lib/importer";
-import { extractPdfText } from "@/lib/pdf";
+import { DESCRIPTION_MAX_LENGTH, FILENAME_MAX_LENGTH, MAX_IMPORT_ROWS, isValidDateString, parseMoneyAmount, sanitizeText, validateUploadFile } from "@/lib/security";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, ImportHistory, MonthlyBalance } from "@/types/database";
 
@@ -93,13 +93,24 @@ function ImportPage() {
       return;
     }
 
+    const uploadError = validateUploadFile(file);
+    if (uploadError) {
+      setError(uploadError);
+      return;
+    }
+
     setProcessing(true);
     try {
-      const content = fileType === "pdf" ? await extractPdfText(file) : await file.text();
+      const content = fileType === "pdf" ? await extractPdfTextLazy(file) : await file.text();
       const parsed = parseStatement(content, fileType, bank);
       if (parsed.length === 0) {
         setReviewItems([]);
         setError("Não encontrei lançamentos válidos nesse arquivo. Confira se ele é um extrato bancário em CSV, OFX ou PDF com data, descrição e valor dos movimentos.");
+        return;
+      }
+      if (parsed.length > MAX_IMPORT_ROWS) {
+        setReviewItems([]);
+        setError(`Arquivo com lançamentos demais (${parsed.length}). Divida o extrato em períodos menores (limite de ${MAX_IMPORT_ROWS} por importação).`);
         return;
       }
 
@@ -107,7 +118,8 @@ function ImportPage() {
         .from("financial_entries")
         .select(entryColumns)
         .eq("account_id", accountId)
-        .order("due_date", { ascending: false });
+        .order("due_date", { ascending: false })
+        .limit(2000);
 
       if (entriesError) throw entriesError;
 
@@ -141,12 +153,13 @@ function ImportPage() {
     try {
       const duplicated = reviewItems.filter((item) => item.duplicate).length;
       const ignored = reviewItems.length - selectedItems.length - duplicated;
+      const safeFilename = sanitizeText(file.name, FILENAME_MAX_LENGTH) || "extrato";
       const { data: history, error: startHistoryError } = await supabase
         .from("import_history")
         .insert({
           user_id: user.id,
           account_id: accountId,
-          filename: file.name,
+          filename: safeFilename,
           file_type: fileType,
           bank,
           total_transactions: reviewItems.length,
@@ -166,6 +179,9 @@ function ImportPage() {
         const { year, month } = parseMonthKey(item.date.slice(0, 7));
         const balance = balances.get(`${year}-${month}`);
         if (!balance) throw new Error(`Não consegui criar o balanço de ${monthLabel(year, month)}.`);
+        const amount = parseMoneyAmount(item.amount);
+        if (amount === null) throw new Error(`Valor inválido em "${sanitizeText(item.description, 40)}". Ajuste antes de importar.`);
+        if (!isValidDateString(item.date)) throw new Error(`Data inválida em "${sanitizeText(item.description, 40)}". Ajuste antes de importar.`);
 
         return {
           user_id: user.id,
@@ -174,9 +190,9 @@ function ImportPage() {
           category_id: item.categoryId || null,
           entry_type: item.type,
           status: item.status,
-          description: item.description.trim(),
-          expected_amount: item.amount,
-          actual_amount: item.status === "paid" ? item.amount : null,
+          description: sanitizeText(item.description, DESCRIPTION_MAX_LENGTH),
+          expected_amount: amount,
+          actual_amount: item.status === "paid" ? amount : null,
           due_date: item.date,
           paid_date: item.status === "paid" ? item.date : null,
           source: "imported" as const,
@@ -276,9 +292,9 @@ function ImportPage() {
                 <Label htmlFor="import-file">Arquivo CSV/OFX/PDF</Label>
                 <Input id="import-file" type="file" accept=".csv,.ofx,.pdf,text/csv,application/x-ofx,application/pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
               </div>
-              <Button type="button" onClick={processFile} disabled={processing}>{processing ? "Processando..." : "Processar"}</Button>
+              <Button type="button" onClick={processFile} disabled={processing || saving}>{processing ? "Processando..." : "Processar"}</Button>
             </div>
-            <p className="mt-4 rounded-2xl border border-amber-300/15 bg-amber-400/[0.07] p-3 text-sm text-amber-100">PDFs variam muito entre bancos. Confira datas, valores e tipo de lançamento antes de importar.</p>
+            <p className="mt-4 rounded-2xl border border-amber-300/15 bg-amber-400/[0.07] p-3 text-sm text-amber-100">PDFs variam muito entre bancos. Confira datas, valores e tipo de lançamento antes de importar. Limite de 10 MB por arquivo e 50 páginas por PDF.</p>
           </CardContent>
         </Card>
 
@@ -292,7 +308,7 @@ function ImportPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => setReviewItems((items) => items.map((item) => ({ ...item, selected: !item.duplicate })))}>Selecionar válidos</Button>
-                  <Button type="button" onClick={confirmImport} disabled={saving}>{saving ? "Importando..." : `Importar ${summary.selected}`}</Button>
+                  <Button type="button" onClick={confirmImport} disabled={saving || processing}>{saving ? "Importando..." : `Importar ${summary.selected}`}</Button>
                 </div>
               </div>
             </CardHeader>
@@ -358,7 +374,7 @@ function ReviewItem({ item, accounts, categories, accountName, onChange }: { ite
       <div className="grid gap-3 lg:grid-cols-[1.2fr_0.75fr_0.7fr_0.8fr_0.8fr_0.9fr]">
         <div className="space-y-2">
           <Label>Descrição</Label>
-          <Input value={item.description} onChange={(event) => onChange({ description: event.target.value })} />
+          <Input value={item.description} maxLength={DESCRIPTION_MAX_LENGTH} onChange={(event) => onChange({ description: event.target.value })} />
         </div>
         <div className="space-y-2">
           <DatePicker label="Data" value={item.date} onChange={(value) => onChange({ date: value })} />
@@ -423,4 +439,9 @@ function detectFileType(filename: string): ImportFileType | null {
   if (lower.endsWith(".ofx")) return "ofx";
   if (lower.endsWith(".pdf")) return "pdf";
   return null;
+}
+
+async function extractPdfTextLazy(file: File) {
+  const { extractPdfText } = await import("@/lib/pdf");
+  return extractPdfText(file);
 }
