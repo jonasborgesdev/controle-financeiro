@@ -438,8 +438,8 @@ function TransferPairCard({
   const destinationName = destinationLeg?.account_id ? accountById.get(destinationLeg.account_id)?.name ?? "Destino" : "Destino";
 
   return (
-    <div className="grid gap-3 rounded-2xl border border-white/10 bg-slate-950/25 p-3 shadow-lg shadow-slate-950/15 sm:p-4" data-testid="transfer-pair-card">
-      <div className="flex items-start justify-between gap-3">
+    <div className="grid min-w-0 gap-3 rounded-2xl border border-white/10 bg-slate-950/25 p-3 shadow-lg shadow-slate-950/15 sm:p-4" data-testid="transfer-pair-card">
+      <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-cyan-400/10 text-cyan-200 ring-1 ring-cyan-300/20">
             <ArrowLeftRight className="size-5" aria-hidden="true" />
@@ -451,14 +451,14 @@ function TransferPairCard({
         </div>
         <p className="shrink-0 text-sm font-black tracking-[-0.03em] text-cyan-200">{formatCurrency(amount)}</p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="rounded-full bg-cyan-400/10 px-2 py-0.5 text-[0.68rem] font-semibold text-cyan-200 ring-1 ring-cyan-300/20">Transferência</span>
         <span className={`rounded-full px-2 py-0.5 text-[0.68rem] font-semibold ring-1 ${isPaid ? "bg-emerald-400/10 text-emerald-200 ring-emerald-300/15" : "bg-[#f5c76b]/10 text-[#f5c76b] ring-[#f5c76b]/15"}`}>
           {isPaid ? "Realizado" : "Previsto"}
         </span>
         {legs.length < 2 ? <span className="rounded-full bg-rose-400/10 px-2 py-0.5 text-[0.68rem] font-semibold text-rose-200 ring-1 ring-rose-300/20">Par incompleto</span> : null}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-300">
           <input
             type="checkbox"
