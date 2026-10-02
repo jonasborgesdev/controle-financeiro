@@ -1,3 +1,4 @@
+import { isInternalTransfer, transferCategoryIds } from "@/lib/transfers";
 import type { Account, Budget, Category, FinancialEntry, MonthlyBalance, RecurringRule, RecurringTransaction, SavingsGoal, Transaction } from "@/types/database";
 
 export const defaultExpenseClassifications = new Set(["Gastos fixos", "Gastos variáveis"]);
@@ -83,10 +84,14 @@ export function entryEffectiveDate(entry: Pick<FinancialEntry, "due_date" | "pai
 }
 
 export function summarizeEntries(entries: FinancialEntry[]) {
-  const expectedIncome = entries.filter((entry) => entry.entry_type === "income").reduce((total, entry) => total + Number(entry.expected_amount), 0);
-  const expectedExpenses = entries.filter((entry) => entry.entry_type === "expense").reduce((total, entry) => total + Number(entry.expected_amount), 0);
-  const actualIncome = entries.filter((entry) => entry.entry_type === "income" && entry.status === "paid").reduce((total, entry) => total + entryActualAmount(entry), 0);
-  const actualExpenses = entries.filter((entry) => entry.entry_type === "expense" && entry.status === "paid").reduce((total, entry) => total + entryActualAmount(entry), 0);
+  // Semana 10.2: transferências (source='transfer' ou par linkado) não entram
+  // nos totais reais de receita/despesa. Saldos por conta seguem em
+  // accountBalanceFromEntries, que continua somando todos os lados.
+  const real = entries.filter((entry) => !isInternalTransfer(entry));
+  const expectedIncome = real.filter((entry) => entry.entry_type === "income").reduce((total, entry) => total + Number(entry.expected_amount), 0);
+  const expectedExpenses = real.filter((entry) => entry.entry_type === "expense").reduce((total, entry) => total + Number(entry.expected_amount), 0);
+  const actualIncome = real.filter((entry) => entry.entry_type === "income" && entry.status === "paid").reduce((total, entry) => total + entryActualAmount(entry), 0);
+  const actualExpenses = real.filter((entry) => entry.entry_type === "expense" && entry.status === "paid").reduce((total, entry) => total + entryActualAmount(entry), 0);
 
   return {
     expectedIncome,
@@ -101,13 +106,17 @@ export function summarizeEntries(entries: FinancialEntry[]) {
 }
 
 export function expensesByBudget(categories: Category[], budgets: Budget[], entries: FinancialEntry[]) {
+  // Semana 10.2: transferência não conta como gasto de orçamento (com fallback
+  // para legados com categoria Transferências sem source='transfer').
+  const transferIds = transferCategoryIds(categories);
+  const real = entries.filter((entry) => !isInternalTransfer(entry, transferIds));
   const budgetByCategory = new Map(budgets.map((budget) => [budget.category_id, Number(budget.planned_amount)]));
 
   return categories
     .filter((category) => category.type === "expense")
     .map((category) => {
       const planned = budgetByCategory.get(category.id) ?? 0;
-      const actual = entries
+      const actual = real
         .filter((entry) => entry.entry_type === "expense" && entry.status === "paid" && entry.category_id === category.id)
         .reduce((total, entry) => total + entryActualAmount(entry), 0);
       return {
@@ -154,8 +163,9 @@ export function accountBalancesFromEntries(accounts: Account[], entries: Financi
 
 export function expensesByCategory(entries: FinancialEntry[], categories: Category[]) {
   const categoryById = new Map(categories.map((category) => [category.id, category]));
+  const transferIds = transferCategoryIds(categories);
   const totals = entries
-    .filter((entry) => entry.entry_type === "expense")
+    .filter((entry) => entry.entry_type === "expense" && !isInternalTransfer(entry, transferIds))
     .reduce<Map<string, { id: string; name: string; value: number; color: string | null }>>((map, entry) => {
       const category = entry.category_id ? categoryById.get(entry.category_id) : null;
       const id = category?.id ?? "sem-categoria";

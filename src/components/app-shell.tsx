@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Banknote, BarChart3, BrainCircuit, CalendarClock, ChevronRight, CircleDollarSign, CreditCard, Home, Layers3, LineChart, Plus, ReceiptText, Settings, Upload, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, BarChart3, BrainCircuit, CalendarClock, ChevronRight, CircleDollarSign, CreditCard, Home, Layers3, LineChart, Plus, ReceiptText, Settings, Upload, X } from "lucide-react";
 import LogoutButton from "@/components/auth/logout-button";
 
 const navItems = [
   { to: "/", label: "Início", icon: Home },
   { to: "/transacoes", label: "Lançamentos", icon: ReceiptText },
+  { to: "/transferencias", label: "Transferências", icon: ArrowLeftRight },
   { to: "/planejamento", label: "Planejamento", icon: BarChart3 },
   { to: "/projecoes", label: "Projeções", icon: LineChart },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3 },

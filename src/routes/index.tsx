@@ -20,6 +20,7 @@ import {
   summarizeEntries,
 } from "@/lib/finance";
 import { financingNextDueDate, monthlyFinancingCommitment } from "@/lib/financings";
+import { isInternalTransfer, transferCategoryIds } from "@/lib/transfers";
 import { createClient } from "@/lib/supabase/client";
 import { parseAiResponse } from "@/lib/ai";
 import type { Account, AiAnalysis, Category, FinancialEntry, Financing, IntegrationSetting, SavingsGoal } from "@/types/database";
@@ -28,7 +29,7 @@ const currentMonth = new Date().toISOString().slice(0, 7);
 const chartColors = ["#22d3ee", "#10b981", "#f5c76b", "#fb7185", "#38bdf8", "#94a3b8"];
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
-const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
+const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,transfer_group_id,notes,created_at,updated_at";
 const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
 const settingsColumns = "id,user_id,provider,enabled,environment,default_account_id,default_category_id,last_sync_at,created_at,updated_at";
 const financingColumns = "id,user_id,account_id,category_id,name,original_amount,installment_amount,total_installments,paid_installments,due_day,start_date,status,notes,created_at,updated_at";
@@ -297,6 +298,7 @@ function DashboardPage() {
               <CardContent>
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
                   <Link to="/transacoes" className="rounded-2xl bg-emerald-400 px-4 py-3 text-center text-sm font-semibold text-[#02140f] transition hover:bg-emerald-300">Nova transação</Link>
+                  <Link to="/transferencias" className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.10] px-4 py-3 text-center text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.16]">Nova transferência</Link>
                   <Link to="/importacao" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Importar extrato</Link>
                   {asaasSettings?.enabled ? <Link to="/asaas" className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.10] px-4 py-3 text-center text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.16]">Sincronizar Asaas</Link> : null}
                   {aiSettings?.enabled ? <Link to="/ia" search={{ type: "monthly", month: selectedMonth, year: undefined }} className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Analisar com IA</Link> : null}
@@ -491,8 +493,9 @@ function MiniPlanningBar({ label, planned, actual, tone }: { label: string; plan
 
 function expensesByCategoryProgress(entries: FinancialEntry[], categories: Category[], userId: string) {
   const categoryById = new Map(categories.filter((category) => isFinanceClassification(category, userId)).map((category) => [category.id, category]));
+  const transferIds = transferCategoryIds(categories);
   const totals = entries
-    .filter((entry) => entry.entry_type === "expense")
+    .filter((entry) => entry.entry_type === "expense" && !isInternalTransfer(entry, transferIds))
     .reduce<Map<string, { id: string; name: string; expected: number; actual: number; color: string | null }>>((map, entry) => {
       const category = entry.category_id ? categoryById.get(entry.category_id) : null;
       const id = category?.id ?? "sem-categoria";

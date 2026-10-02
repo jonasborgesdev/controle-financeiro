@@ -16,7 +16,7 @@ import type { Account, Category, FinancialEntry, ImportHistory, MonthlyBalance }
 
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
-const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
+const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,transfer_group_id,notes,created_at,updated_at";
 const balanceColumns = "id,user_id,year,month,label,created_at,updated_at";
 const historyColumns = "id,user_id,account_id,filename,file_type,bank,total_transactions,imported_transactions,duplicated_transactions,ignored_transactions,status,error_message,created_at";
 

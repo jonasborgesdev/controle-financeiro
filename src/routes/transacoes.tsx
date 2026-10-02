@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { TRANSFER_CATEGORY_NAME } from "@/lib/transfers";
 import { AppShell } from "@/components/app-shell";
 import { DatePicker } from "@/components/date-picker";
 import { MonthPicker } from "@/components/month-picker";
@@ -49,7 +50,7 @@ const statusLabel = {
   paid: "Realizado",
 } satisfies Record<EntryForm["status"], string>;
 
-const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,financing_id,installment_year,installment_month,notes,created_at,updated_at";
+const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,transfer_group_id,financing_id,installment_year,installment_month,notes,created_at,updated_at";
 const balanceColumns = "id,user_id,year,month,label,created_at,updated_at";
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
@@ -85,6 +86,8 @@ function EntriesPage() {
   const visibleCategories = categories.filter((category) => category.type === form.entry_type && isFinanceClassification(category, user.id));
   const summary = summarizeEntries(entries);
   const groupedEntries = groupEntriesByEffectiveDate(entries);
+  const editingEntry = editingId ? entries.find((entry) => entry.id === editingId) ?? null : null;
+  const isEditingTransfer = editingEntry != null && (editingEntry.source === "transfer" || Boolean(editingEntry.transfer_group_id));
 
   const loadData = async () => {
     setLoading(true);
@@ -205,11 +208,22 @@ function EntriesPage() {
         notes: form.notes.trim() ? sanitizeText(form.notes, NOTES_MAX_LENGTH) : null,
       };
 
-      const result = editingId
-        ? await supabase.from("financial_entries").update(payload).eq("id", editingId)
-        : await supabase.from("financial_entries").insert(payload);
-
-      if (result.error) throw result.error;
+      // Semana 10.2: editar um lado da transferência propaga valor, datas,
+      // descrição e status para o par (conta e tipo de cada lado preservados).
+      if (editingId && editingEntry?.transfer_group_id) {
+        const pairIds = entries.filter((entry) => entry.transfer_group_id === editingEntry.transfer_group_id).map((entry) => entry.id);
+        const targetIds = pairIds.length > 0 ? pairIds : [editingId];
+        for (const target of entries.filter((entry) => targetIds.includes(entry.id))) {
+          const pairPayload = { ...payload, entry_type: target.entry_type, account_id: target.account_id };
+          const { error: pairError } = await supabase.from("financial_entries").update(pairPayload).eq("id", target.id);
+          if (pairError) throw pairError;
+        }
+      } else {
+        const result = editingId
+          ? await supabase.from("financial_entries").update(payload).eq("id", editingId)
+          : await supabase.from("financial_entries").insert(payload);
+        if (result.error) throw result.error;
+      }
       setModalOpen(false);
       await loadData();
     } catch (caughtError) {
@@ -221,7 +235,18 @@ function EntriesPage() {
 
   const deleteEntry = async (entry: FinancialEntry) => {
     setOpenActionMenuId(null);
-    if (!window.confirm("Tem certeza que deseja excluir este lançamento?")) return;
+    // Semana 10.2: exclusão de transferência oferece o par ou só um lado.
+    if (entry.transfer_group_id) {
+      const pairIds = entries.filter((item) => item.transfer_group_id === entry.transfer_group_id).map((item) => item.id);
+      const targets = pairIds.length > 0 ? pairIds : [entry.id];
+      if (window.confirm(`Excluir a transferência (os ${targets.length} lançamentos do par)?`)) {
+        const { error } = await supabase.from("financial_entries").delete().in("id", targets);
+        if (error) setError(error.message);
+        await loadData();
+        return;
+      }
+      if (!window.confirm("Excluir só ESTE lançamento e manter o outro lado? (não recomendado)")) return;
+    } else if (!window.confirm("Tem certeza que deseja excluir este lançamento?")) return;
     const { error } = await supabase.from("financial_entries").delete().eq("id", entry.id);
     if (error) setError(error.message);
     await loadData();
@@ -235,7 +260,11 @@ function EntriesPage() {
     const effectiveDate = statusPatch.status === "paid" ? statusPatch.paid_date : entry.due_date;
     const monthlyBalance = await ensureMonthlyBalance(effectiveDate);
     const payload = { ...statusPatch, monthly_balance_id: monthlyBalance.id };
-    const { error: updateError } = await supabase.from("financial_entries").update(payload).eq("id", entry.id);
+    // Semana 10.2: checkbox previsto/realizado propaga para o par.
+    const statusTargets = entry.transfer_group_id
+      ? entries.filter((item) => item.transfer_group_id === entry.transfer_group_id).map((item) => item.id)
+      : [entry.id];
+    const { error: updateError } = await supabase.from("financial_entries").update(payload).in("id", statusTargets.length > 0 ? statusTargets : [entry.id]);
     if (updateError) setError(updateError.message);
     if (!updateError && entry.financing_id) {
       const { data: financing } = await supabase
@@ -263,7 +292,10 @@ function EntriesPage() {
         <PageHero eyebrow="Ganhos e gastos" title="Lançamentos por competência." description="Cada item tem valor previsto, status e valor real, igual ao seu controle no Notion.">
           <div className="grid gap-4">
             <MonthPicker id="entries-month" label="Mês de competência" value={selectedMonth} onChange={setSelectedMonth} />
-            <Button type="button" onClick={() => openNewEntry()}>Novo lançamento</Button>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button type="button" onClick={() => openNewEntry()}>Novo lançamento</Button>
+              <Link to="/transferencias" className="rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.08] px-4 py-3 text-center text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/[0.14]">Nova transferência</Link>
+            </div>
           </div>
         </PageHero>
 
@@ -301,6 +333,11 @@ function EntriesPage() {
 
       <Modal title={editingId ? "Editar lançamento" : "Novo lançamento"} description="Cadastre ganhos e gastos com valor previsto e, quando acontecer, valor real." open={modalOpen} onClose={() => setModalOpen(false)}>
         <form className="grid gap-4" onSubmit={handleSubmit}>
+          {isEditingTransfer ? (
+            <p className="rounded-xl border border-cyan-300/20 bg-cyan-400/[0.08] p-3 text-xs text-cyan-100">
+              Isso faz parte de uma transferência — a edição será aplicada aos 2 lados do par. Para mover entre contas, use a tela de Transferências.
+            </p>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="entry-type">Tipo</Label>
@@ -521,6 +558,7 @@ function EntryListItem({
 }) {
   const accountName = entry.account_id ? accountById.get(entry.account_id)?.name ?? "Conta" : "Sem conta";
   const categoryName = entry.category_id ? categoryById.get(entry.category_id)?.name ?? "Classificação" : "Sem classificação";
+  const isTransfer = entry.source === "transfer" || Boolean(entry.transfer_group_id) || categoryName === TRANSFER_CATEGORY_NAME;
   const isIncome = entry.entry_type === "income";
   const amount = entryDisplayAmount(entry);
   const isPaid = entry.status === "paid";
@@ -551,6 +589,7 @@ function EntryListItem({
         <p className="break-words text-[0.85rem] font-semibold leading-5 text-slate-50 line-clamp-2 sm:text-[0.95rem]">{entry.description}</p>
         <div className="mt-0.5 flex min-w-0 items-center gap-x-1.5 text-[0.7rem] leading-4 text-slate-400 sm:text-xs">
           <span className="min-w-0 flex-1 truncate">{accountName} · {categoryName}</span>
+          {isTransfer ? <span className="shrink-0 rounded-full bg-cyan-400/10 px-1.5 py-0.5 text-[0.62rem] font-semibold text-cyan-200 ring-1 ring-cyan-300/20 sm:px-2 sm:text-[0.68rem]">Transferência</span> : null}
           <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.62rem] font-semibold sm:px-2 sm:text-[0.68rem] ${statusClassName}`}>{statusLabel[entry.status]}</span>
           <span className={`shrink-0 text-xs font-black tracking-[-0.03em] sm:hidden ${valueClassName}`}>{isIncome ? "+" : "-"}{formatCurrency(amount)}</span>
         </div>

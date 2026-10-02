@@ -1,5 +1,6 @@
 import type { Account, Category, FinancialEntry, SavingsGoal } from "@/types/database";
 import { entryActualAmount, formatCurrency, summarizeEntries } from "@/lib/finance";
+import { splitEntries, summarizeInternalMovements } from "@/lib/transfers";
 
 export type ReportDistributionRow = {
   id: string;
@@ -18,17 +19,22 @@ export type MonthlyReport = ReturnType<typeof buildMonthlyReport>;
 export type AnnualReport = ReturnType<typeof buildAnnualReport>;
 
 export function buildMonthlyReport(entries: FinancialEntry[], accounts: Account[], categories: Category[], goals: SavingsGoal[]) {
-  const summary = summarizeEntries(entries);
+  // Semana 10.2: transferências saem dos totais reais e ganham seção própria.
+  const { real, internal } = splitEntries(entries, categories);
+  const internalMovements = { entries: internal, ...summarizeInternalMovements(internal) };
+  const summary = summarizeEntries(real);
   const goal = goals.find((item) => item.is_active) ?? null;
   const savingsPlanned = Number(goal?.monthly_target ?? 0);
   const savingsActual = summary.actualBalance;
-  const paidEntries = entries.filter((entry) => entry.status === "paid");
-  const pendingEntries = entries
+  const paidEntries = real.filter((entry) => entry.status === "paid");
+  const pendingEntries = real
     .filter((entry) => entry.status === "planned")
     .sort((first, second) => new Date(first.due_date).getTime() - new Date(second.due_date).getTime());
 
   return {
     entries,
+    realEntries: real,
+    internalMovements,
     summary,
     difference: {
       income: summary.actualIncome - summary.expectedIncome,
@@ -42,8 +48,8 @@ export function buildMonthlyReport(entries: FinancialEntry[], accounts: Account[
       reached: savingsPlanned > 0 ? savingsActual >= savingsPlanned : null,
       percent: savingsPlanned > 0 ? Math.max(0, Math.min(100, (savingsActual / savingsPlanned) * 100)) : 0,
     },
-    byCategory: distributionByCategory(entries, categories),
-    byAccount: distributionByAccount(entries, accounts),
+    byCategory: distributionByCategory(real, categories),
+    byAccount: distributionByAccount(real, accounts),
     topExpenses: paidEntries
       .filter((entry) => entry.entry_type === "expense")
       .sort((first, second) => entryActualAmount(second) - entryActualAmount(first))
@@ -58,10 +64,13 @@ export function buildMonthlyReport(entries: FinancialEntry[], accounts: Account[
 }
 
 export function buildAnnualReport(entries: FinancialEntry[], accounts: Account[], categories: Category[], goals: SavingsGoal[], year: number) {
-  const summary = summarizeEntries(entries);
+  // Semana 10.2: transferências saem dos totais reais e ganham seção própria.
+  const { real, internal } = splitEntries(entries, categories);
+  const internalMovements = { entries: internal, ...summarizeInternalMovements(internal) };
+  const summary = summarizeEntries(real);
   const months = Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
-    const monthEntries = entries.filter((entry) => entry.due_date.startsWith(`${year}-${String(month).padStart(2, "0")}`));
+    const monthEntries = real.filter((entry) => entry.due_date.startsWith(`${year}-${String(month).padStart(2, "0")}`));
     const monthSummary = summarizeEntries(monthEntries);
     return {
       month,
@@ -88,9 +97,10 @@ export function buildAnnualReport(entries: FinancialEntry[], accounts: Account[]
 
   return {
     summary,
+    internalMovements,
     months,
-    byCategory: distributionByCategory(entries, categories),
-    byAccount: distributionByAccount(entries, accounts),
+    byCategory: distributionByCategory(real, categories),
+    byAccount: distributionByAccount(real, accounts),
     savings: {
       goal,
       planned: savingsPlanned,

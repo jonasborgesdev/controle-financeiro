@@ -1,5 +1,6 @@
 import type { Account, Budget, Category, FinancialEntry, Financing, RecurringRule, SavingsGoal } from "@/types/database";
 import { dueDateForMonth, entryActualSignedAmount, entryProjectedSignedAmount, monthKey, recurringRuleAppliesToMonth } from "@/lib/finance";
+import { isInternalTransfer, transferCategoryIds } from "@/lib/transfers";
 
 export type ProjectionStatus = "healthy" | "attention" | "critical";
 
@@ -57,16 +58,20 @@ export function buildFinancialProjection(input: BuildProjectionInput): Projectio
   const projectionMonths = Array.from({ length: monthsToProject }, (_, index) => addMonths(input.startYear, input.startMonth, index));
   const firstMonth = projectionMonths[0]!;
   const firstMonthKey = monthKey(firstMonth.year, firstMonth.month);
+  // Semana 10.2: saldo inicial considera tudo (transferência movimenta conta),
+  // mas a projeção de receitas/despesas ignora movimentações internas.
   const startingBalance = currentBalanceBeforeMonth(input.accounts, input.entries, firstMonthKey);
+  const transferIds = transferCategoryIds(input.categories ?? []);
+  const realEntries = input.entries.filter((entry) => !isInternalTransfer(entry, transferIds));
   const categoryById = new Map((input.categories ?? []).map((category) => [category.id, category]));
-  const variableAverage = variableAverages(input.entries, categoryById, input.startYear, input.startMonth, averageWindowMonths);
+  const variableAverage = variableAverages(realEntries, categoryById, input.startYear, input.startMonth, averageWindowMonths);
   const activeGoal = input.savingsGoals.find((goal) => goal.is_active) ?? null;
   const savingsTarget = Number(activeGoal?.monthly_target ?? 0);
   let cumulativeBalance = startingBalance;
 
   const months = projectionMonths.map(({ year, month }) => {
     const key = monthKey(year, month);
-    const entries = input.entries.filter((entry) => entry.due_date.startsWith(key));
+    const entries = realEntries.filter((entry) => entry.due_date.startsWith(key));
     const explicit = summarizeExplicitEntries(entries);
     const missingRecurring = summarizeMissingRecurring(input.recurringRules, entries, year, month);
     const missingFinancing = summarizeMissingFinancing(input.financings, entries, year, month);
@@ -129,6 +134,7 @@ export function buildFinancialProjection(input: BuildProjectionInput): Projectio
       "Recorrências ativas entram quando ainda não existe lançamento gerado para o mês.",
       "Orçamentos completam despesas por classificação quando o planejado está maior que os lançamentos existentes.",
       "Financiamentos ativos entram pelo lançamento já gerado ou pela parcela estimada do contrato.",
+      "Transferências entre contas não entram como receita/despesa (só movimentam saldos por conta).",
       "A IA não participa do cálculo; ela pode apenas explicar dados em outra área do app.",
     ],
     alerts: buildProjectionAlerts(months),
@@ -192,7 +198,7 @@ function variableAverages(entries: FinancialEntry[], categoryById: Map<string, C
 }
 
 function isVariableEntry(entry: FinancialEntry, categoryById: Map<string, Category>) {
-  if (entry.source === "recurring" || entry.source === "financing" || entry.financing_id) return false;
+  if (entry.source === "recurring" || entry.source === "financing" || entry.source === "transfer" || entry.transfer_group_id || entry.financing_id) return false;
   const category = entry.category_id ? categoryById.get(entry.category_id) : null;
   if (category?.name.toLowerCase().includes("fix")) return false;
   return true;

@@ -18,7 +18,7 @@ type ReportMode = "monthly" | "annual";
 const today = new Date();
 const currentMonth = today.toISOString().slice(0, 7);
 const currentYear = today.getFullYear();
-const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
+const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,transfer_group_id,notes,created_at,updated_at";
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
 const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
@@ -213,6 +213,12 @@ function MonthlyReportView({ report, periodLabel, accountById, categoryById }: {
           <EntriesCardContent entries={financingEntriesForMonth(report.entries)} tone="expense" accountById={accountById} categoryById={categoryById} emptyText="Nenhuma parcela de financiamento gerada neste mês." />
         </CardContent>
       </Card>
+
+      <InternalMovementsCard
+        title="Movimentações internas no mês"
+        description="Transferências entre contas: não entram nos totais de ganhos e gastos."
+        internal={report.internalMovements}
+      />
     </>
   );
 }
@@ -279,7 +285,35 @@ function AnnualReportView({ report, previousReport, previousEntriesCount, year }
           {previousEntriesCount > 0 ? <PreviousYearComparison current={report.summary} previous={previousReport.summary} /> : <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Ainda não há dados do ano anterior para comparar.</p>}
         </CardContent>
       </Card>
+
+      <InternalMovementsCard
+        title={`Movimentações internas em ${year}`}
+        description="Transferências entre contas no ano: fora dos totais reais de ganhos e gastos."
+        internal={report.internalMovements}
+      />
     </>
+  );
+}
+
+function InternalMovementsCard({ title, description, internal }: { title: string; description: string; internal: { count: number; pairs: number; expectedTotal: number; actualTotal: number } }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {internal.count === 0 ? (
+          <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Nenhuma transferência no período.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <InfoRow label="Transferências" value={`${internal.pairs} par(es) · ${internal.count} lançamento(s)`} />
+            <InfoRow label="Total previsto" value={formatCurrency(internal.expectedTotal)} />
+            <InfoRow label="Total realizado" value={formatCurrency(internal.actualTotal)} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
