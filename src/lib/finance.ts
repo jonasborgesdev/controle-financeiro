@@ -83,11 +83,13 @@ export function entryEffectiveDate(entry: Pick<FinancialEntry, "due_date" | "pai
   return entry.status === "paid" && entry.paid_date ? entry.paid_date : entry.due_date;
 }
 
-export function summarizeEntries(entries: FinancialEntry[]) {
+export function summarizeEntries(entries: FinancialEntry[], options?: { includeTransfers?: boolean }) {
   // Semana 10.2: transferências (source='transfer' ou par linkado) não entram
   // nos totais reais de receita/despesa. Saldos por conta seguem em
   // accountBalanceFromEntries, que continua somando todos os lados.
-  const real = entries.filter((entry) => !isInternalTransfer(entry));
+  // Semana 10.3: quando filtrado por conta específica, includeTransfers=true
+  // faz a transferência contar como saída daquele caixa (ex.: 4500 - 4000 = 500).
+  const real = options?.includeTransfers ? entries : entries.filter((entry) => !isInternalTransfer(entry));
   const expectedIncome = real.filter((entry) => entry.entry_type === "income").reduce((total, entry) => total + Number(entry.expected_amount), 0);
   const expectedExpenses = real.filter((entry) => entry.entry_type === "expense").reduce((total, entry) => total + Number(entry.expected_amount), 0);
   const actualIncome = real.filter((entry) => entry.entry_type === "income" && entry.status === "paid").reduce((total, entry) => total + entryActualAmount(entry), 0);

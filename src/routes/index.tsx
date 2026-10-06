@@ -5,6 +5,7 @@ import { MonthPicker } from "@/components/month-picker";
 import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { filterEntriesByAccount, useAccountScope } from "@/lib/account-scope";
 import {
   accountBalanceFromEntries,
   accountBalancesFromEntries,
@@ -49,8 +50,8 @@ export const Route = createFileRoute("/")({
 
 function DashboardPage() {
   const { user } = Route.useRouteContext();
+  const { accountId: selectedAccountId } = useAccountScope();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [monthEntries, setMonthEntries] = useState<FinancialEntry[]>([]);
@@ -102,9 +103,9 @@ function DashboardPage() {
   }, [selectedMonth, user.id]);
 
   const selectedAccounts = selectedAccountId === "all" ? accounts : accounts.filter((account) => account.id === selectedAccountId);
-  const filteredMonthEntries = selectedAccountId === "all" ? monthEntries : monthEntries.filter((entry) => entry.account_id === selectedAccountId);
-  const filteredBalanceEntries = selectedAccountId === "all" ? balanceEntries : balanceEntries.filter((entry) => entry.account_id === selectedAccountId);
-  const summary = summarizeEntries(filteredMonthEntries);
+  const filteredMonthEntries = filterEntriesByAccount(monthEntries, selectedAccountId);
+  const filteredBalanceEntries = filterEntriesByAccount(balanceEntries, selectedAccountId);
+  const summary = summarizeEntries(filteredMonthEntries, { includeTransfers: selectedAccountId !== "all" });
   const totalAvailable = selectedAccounts.reduce((total, account) => total + accountBalanceFromEntries(account, filteredBalanceEntries), 0);
   const accountBalances = accountBalancesFromEntries(selectedAccounts, filteredBalanceEntries);
   const categoryExpenses = expensesByCategoryProgress(filteredMonthEntries, categories, user.id);
@@ -126,13 +127,6 @@ function DashboardPage() {
         <PageHero eyebrow="Dashboard mensal" title="Visão clara do mês, sem abrir planilha." description="Acompanhe saldo disponível, entradas, saídas, contas e classificações do período selecionado.">
           <div className="grid gap-4">
             <MonthPicker id="selected-month" label="Mês do dashboard" value={selectedMonth} onChange={setSelectedMonth} />
-            <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-400" htmlFor="selected-account">Conta</label>
-              <select id="selected-account" className="finance-select" value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)}>
-                <option value="all">Todas as contas</option>
-                {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-              </select>
-            </div>
             <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4 text-slate-50">
               <p className="text-sm text-slate-400">Saldo disponível</p>
               <p className={totalAvailable < 0 ? "mt-2 text-4xl font-black tracking-[-0.04em] text-rose-300" : "mt-2 text-4xl font-black tracking-[-0.04em] text-emerald-300"}>{formatCurrency(totalAvailable)}</p>

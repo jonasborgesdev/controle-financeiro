@@ -147,6 +147,42 @@ describe("finance", () => {
     });
   });
 
+  it("includeTransfers faz transferência contar como saída na visão por conta", () => {
+    const transferExpense: FinancialEntry = {
+      ...baseEntry,
+      id: "transfer-out",
+      entry_type: "expense",
+      status: "planned",
+      source: "transfer",
+      transfer_group_id: "group-1",
+      expected_amount: 4000,
+      actual_amount: null,
+      description: "Transferência PJ → Conjunta",
+    };
+    const salary: FinancialEntry = {
+      ...baseEntry,
+      id: "salary",
+      entry_type: "income",
+      status: "planned",
+      source: "recurring",
+      expected_amount: 4500,
+      actual_amount: null,
+      description: "Salário",
+    };
+
+    // Sem includeTransfers (visão geral): transferência excluída
+    const allSummary = summarizeEntries([salary, transferExpense]);
+    expect(allSummary.expectedIncome).toBe(4500);
+    expect(allSummary.expectedExpenses).toBe(0);
+    expect(allSummary.expectedBalance).toBe(4500);
+
+    // Com includeTransfers (visão por conta): transferência conta como saída
+    const accountSummary = summarizeEntries([salary, transferExpense], { includeTransfers: true });
+    expect(accountSummary.expectedIncome).toBe(4500);
+    expect(accountSummary.expectedExpenses).toBe(4000);
+    expect(accountSummary.expectedBalance).toBe(500);
+  });
+
   it("calcula saldo da conta com saldo inicial e somente realizados", () => {
     const entries: FinancialEntry[] = [
       { ...baseEntry, id: "paid-income", status: "paid", actual_amount: 500 },

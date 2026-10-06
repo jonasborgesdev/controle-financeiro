@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAccountScope } from "@/lib/account-scope";
 import { asaasSyncSummary, formatAsaasStatus, syncAsaasPayments, type AsaasReviewPayment } from "@/lib/asaas";
 import { formatCurrency, monthBounds, monthLabel, parseMonthKey } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/asaas")({
 
 function AsaasPage() {
   const { user } = Route.useRouteContext();
+  const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -74,7 +76,9 @@ function AsaasPage() {
     const { data } = await supabase.auth.getSession();
     try {
       const result = await syncAsaasPayments({ data: { accessToken: data.session?.access_token ?? "", periodStart: startDate, periodEnd: endDate } });
-      setItems(result.items);
+      const defaultAccountId = selectedAccountId === "all" ? undefined : selectedAccountId;
+      const itemsWithAccount = defaultAccountId ? result.items.map((item) => ({ ...item, accountId: defaultAccountId })) : result.items;
+      setItems(itemsWithAccount);
       setMessage(result.items.length === 0 ? { tone: "empty", text: "Nenhum pagamento recebido encontrado no Asaas para este período." } : { tone: "success", text: `${result.items.length} pagamento(s) encontrado(s). Revise antes de salvar.` });
     } catch (caughtError) {
       const text = caughtError instanceof Error ? caughtError.message : "Não consegui sincronizar o Asaas.";

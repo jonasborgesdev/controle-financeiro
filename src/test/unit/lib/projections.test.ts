@@ -187,4 +187,41 @@ describe("projections", () => {
     expect(projection.months[0]?.plannedExpenses).toBe(1000);
     expect(projection.months[0]?.projectedBalance).toBe(2000);
   });
+
+  it("filtra por accountId e usa saldo inicial apenas da conta selecionada", () => {
+    const accountB: Account = { ...account, id: "account-2", name: "Conta B", initial_balance: 2000 };
+    const entryA: FinancialEntry = { ...baseEntry, id: "a-income", account_id: account.id, entry_type: "income", category_id: incomeCategory.id, expected_amount: 1000, actual_amount: 1000, due_date: "2026-07-05", paid_date: "2026-07-05" };
+    const entryB: FinancialEntry = { ...baseEntry, id: "b-income", account_id: accountB.id, entry_type: "income", category_id: incomeCategory.id, expected_amount: 5000, actual_amount: 5000, due_date: "2026-07-08", paid_date: "2026-07-08" };
+
+    const allProjection = buildFinancialProjection({
+      startYear: 2026,
+      startMonth: 8,
+      months: 1,
+      entries: [entryA, entryB],
+      recurringRules: [],
+      accounts: [account, accountB],
+      categories: [incomeCategory],
+      budgets: [],
+      savingsGoals: [],
+      financings: [],
+    });
+
+    const accountAProjection = buildFinancialProjection({
+      startYear: 2026,
+      startMonth: 8,
+      months: 1,
+      entries: [entryA, entryB],
+      recurringRules: [],
+      accounts: [account, accountB],
+      categories: [incomeCategory],
+      budgets: [],
+      savingsGoals: [],
+      financings: [],
+      accountId: account.id,
+    });
+
+    expect(allProjection.months[0]?.cumulativeBalance).toBe(8500);
+    expect(accountAProjection.months[0]?.cumulativeBalance).toBe(1500);
+    expect(accountAProjection.months[0]?.projectedIncome).toBe(0);
+  });
 });

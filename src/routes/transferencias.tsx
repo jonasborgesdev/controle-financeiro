@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { ArrowLeftRight, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeftRight, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { DatePicker } from "@/components/date-picker";
 import { MonthPicker } from "@/components/month-picker";
@@ -10,9 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { entryEffectiveDate, entryStatusPatch, formatCurrency, monthLabel, parseMonthKey } from "@/lib/finance";
+import { useAccountScope } from "@/lib/account-scope";
+import { compactEntryDateLabel, entryEffectiveDate, entryStatusPatch, formatCurrency, monthLabel, parseMonthKey } from "@/lib/finance";
 import { DESCRIPTION_MAX_LENGTH, sanitizeText } from "@/lib/security";
-import { TRANSFER_CATEGORY_NAME, buildTransferPair, defaultTransferDescription, findTransferPair, splitEntries, summarizeInternalMovements, tryAcquireTransferLock, validateTransferInput, type TransferStatus } from "@/lib/transfers";
+import { TRANSFER_CATEGORY_NAME, buildTransferPair, buildTransferPairs, defaultTransferDescription, findTransferPair, summarizeInternalMovements, tryAcquireTransferLock, validateTransferInput, type TransferPair, type TransferStatus } from "@/lib/transfers";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, MonthlyBalance } from "@/types/database";
 
@@ -56,6 +57,7 @@ export const Route = createFileRoute("/transferencias")({
 
 function TransfersPage() {
   const { user } = Route.useRouteContext();
+  const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
@@ -68,11 +70,16 @@ function TransfersPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
-  const { internal } = useMemo(() => splitEntries(entries, categories), [entries, categories]);
-  const groups = useMemo(() => groupPairs(internal), [internal]);
-  const movementTotals = useMemo(() => summarizeInternalMovements(internal), [internal]);
+  const transferEntries = useMemo(() => entries.filter((entry) => entry.source === "transfer" || Boolean(entry.transfer_group_id)), [entries]);
+  const pairs = useMemo(() => buildTransferPairs(transferEntries, selectedAccountId), [transferEntries, selectedAccountId]);
+  const movementTotals = useMemo(() => {
+    const filteredEntries = pairs.flatMap((pair) => [pair.origin, pair.destination]);
+    return summarizeInternalMovements(filteredEntries);
+  }, [pairs]);
+  const groupedPairs = useMemo(() => groupPairsByDate(pairs), [pairs]);
 
   const loadData = async () => {
     setLoading(true);
@@ -143,7 +150,9 @@ function TransfersPage() {
 
   const openNewTransfer = () => {
     setEditingGroupId(null);
-    setForm({ ...emptyForm, date: `${selectedMonth}-${String(new Date().getDate()).padStart(2, "0")}` });
+    const defaultFromAccountId = selectedAccountId === "all" ? "" : selectedAccountId;
+    const selectedDay = String(new Date().getDate()).padStart(2, "0");
+    setForm({ ...emptyForm, fromAccountId: defaultFromAccountId, date: `${selectedMonth}-${selectedDay}` });
     setModalOpen(true);
   };
 
@@ -162,6 +171,7 @@ function TransfersPage() {
       descriptionTouched: true,
       status: expenseLeg.status,
     });
+    setOpenActionMenuId(null);
     setModalOpen(true);
   };
 
@@ -246,10 +256,12 @@ function TransfersPage() {
     setSaving(false);
   };
 
-  const deletePair = async (groupId: string, pairCount: number) => {
-    if (!window.confirm(`Excluir a transferência (os ${pairCount} lançamentos do par)?`)) {
-      if (pairCount > 1 && window.confirm("Excluir só UM lado e manter o outro? (não recomendado)")) {
-        const pair = findTransferPair(entries, groupId);
+  const deletePair = async (groupId: string) => {
+    const pair = findTransferPair(entries, groupId);
+    if (pair.length === 0) return;
+    const defaultAction = window.confirm(`Excluir a transferência (os ${pair.length} lançamentos do par)?`);
+    if (!defaultAction) {
+      if (pair.length > 1 && window.confirm("Excluir só UM lado e manter o outro? (não recomendado)")) {
         const single = pair[0];
         if (!single) return;
         const { error: deleteError } = await supabase.from("financial_entries").delete().eq("id", single.id);
@@ -258,11 +270,13 @@ function TransfersPage() {
       }
       return;
     }
-    const ids = findTransferPair(entries, groupId).map((leg) => leg.id);
+    const ids = pair.map((leg) => leg.id);
     const { error: deleteError } = await supabase.from("financial_entries").delete().in("id", ids);
     if (deleteError) setError(deleteError.message);
     await loadData();
   };
+
+  const { year, month } = parseMonthKey(selectedMonth);
 
   return (
     <AppShell>
@@ -274,36 +288,44 @@ function TransfersPage() {
           </div>
         </PageHero>
 
+        <div className="grid gap-4 sm:grid-cols-3">
+          <MetricCard title="Total movimentado" value={movementTotals.expectedTotal} tone="cyan" helper="Previsto no mês" />
+          <MetricCard title="Realizado" value={movementTotals.actualTotal} tone="emerald" helper="Confirmado" />
+          <MetricCard title="Transferências" value={pairs.length} tone="gold" helper="Pares no período" />
+        </div>
+
         <Card>
           <CardHeader>
-            <CardTitle>Movimentações internas de {monthLabel(parseMonthKey(selectedMonth).year, parseMonthKey(selectedMonth).month)}</CardTitle>
+            <CardTitle>Movimentações internas de {monthLabel(year, month)}</CardTitle>
             <CardDescription>
-              {groups.length === 0
+              {pairs.length === 0
                 ? "Nenhuma transferência neste mês."
-                : `${groups.length} transferência(s) · ${formatCurrency(movementTotals.actualTotal)} realizado(s)`}
+                : `${pairs.length} transferência(s) · ${formatCurrency(movementTotals.actualTotal)} realizado(s)`}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {error ? <div className="mb-4 rounded-xl border border-rose-300/20 bg-rose-400/[0.10] p-3 text-sm text-rose-100">{error}</div> : null}
             {loading ? <p className="text-sm text-slate-400">Carregando transferências...</p> : null}
-            <div className="grid gap-3" data-testid="transfer-pair-list">
-              {groups.map((group) => (
-                <TransferPairCard
-                  key={group.key}
-                  groupId={group.groupId}
-                  legs={group.legs}
-                  accountById={accountById}
-                  saving={saving}
-                  onToggleStatus={() => void togglePairStatus(group.groupId)}
-                  onEdit={() => openEditPair(group.groupId)}
-                  onDelete={() => void deletePair(group.groupId, group.legs.length)}
-                />
-              ))}
-              {!loading && groups.length === 0 ? (
+            <div className="space-y-4" data-testid="transfer-pair-list">
+              {!loading && groupedPairs.length === 0 ? (
                 <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">
                   Nada por aqui ainda. Use “Nova transferência” para mover valores entre contas — os totais de ganhos e gastos continuam intactos.
                 </p>
               ) : null}
+              {groupedPairs.map(({ dateLabel, pairs: datePairs }) => (
+                <TransferListGroup
+                  key={dateLabel}
+                  dateLabel={dateLabel}
+                  pairs={datePairs}
+                  accountById={accountById}
+                  saving={saving}
+                  openActionMenuId={openActionMenuId}
+                  onToggleActionMenu={(groupId) => setOpenActionMenuId((current) => (current === groupId ? null : groupId))}
+                  onToggleStatus={(groupId) => void togglePairStatus(groupId)}
+                  onEdit={(groupId) => openEditPair(groupId)}
+                  onDelete={(groupId) => void deletePair(groupId)}
+                />
+              ))}
             </div>
             <p className="mt-4 text-xs text-slate-400">
               Quer lançar ganho ou gasto normal? <Link to="/transacoes" className="font-semibold text-cyan-200 underline underline-offset-2">Ir para Lançamentos</Link>
@@ -393,93 +415,170 @@ function TransfersPage() {
   );
 }
 
-function groupPairs(legs: FinancialEntry[]) {
-  const groups = new Map<string, FinancialEntry[]>();
-  for (const leg of legs) {
-    const key = leg.transfer_group_id ?? `single:${leg.id}`;
-    const current = groups.get(key) ?? [];
-    current.push(leg);
-    groups.set(key, current);
-  }
-  return Array.from(groups.entries())
-    .map(([key, pairLegs]) => ({
-      key,
-      groupId: pairLegs[0]?.transfer_group_id ?? pairLegs[0]?.id ?? key,
-      legs: [...pairLegs].sort((first, second) => first.entry_type.localeCompare(second.entry_type)),
-    }))
-    .sort((first, second) => {
-      const dateDiff = new Date(second.legs[0]?.due_date ?? "").getTime() - new Date(first.legs[0]?.due_date ?? "").getTime();
-      return dateDiff;
-    });
+function MetricCard({ title, value, tone, helper }: { title: string; value: number | string; tone: "cyan" | "emerald" | "gold" | "rose"; helper: string }) {
+  const valueText = typeof value === "number" ? formatCurrency(value) : String(value);
+  const toneClass = {
+    cyan: "text-cyan-200",
+    emerald: "text-emerald-200",
+    gold: "text-[#f5c76b]",
+    rose: "text-rose-200",
+  }[tone];
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{title}</p>
+      <p className={`mt-2 text-2xl font-black tracking-[-0.04em] ${toneClass}`}>{valueText}</p>
+      <p className="mt-1 text-xs text-slate-500">{helper}</p>
+    </div>
+  );
 }
 
-function TransferPairCard({
-  legs,
+function groupPairsByDate(pairs: TransferPair[]): { dateLabel: string; pairs: TransferPair[] }[] {
+  const groups = new Map<string, TransferPair[]>();
+  for (const pair of pairs) {
+    const dateLabel = compactEntryDateLabel(pair.origin.due_date);
+    const current = groups.get(dateLabel) ?? [];
+    current.push(pair);
+    groups.set(dateLabel, current);
+  }
+  return Array.from(groups.entries()).sort(([firstDate], [secondDate]) => secondDate.localeCompare(firstDate)).map(([dateLabel, datePairs]) => ({ dateLabel, pairs: datePairs }));
+}
+
+function TransferListGroup({
+  dateLabel,
+  pairs,
   accountById,
   saving,
+  openActionMenuId,
+  onToggleActionMenu,
   onToggleStatus,
   onEdit,
   onDelete,
 }: {
-  groupId: string;
-  legs: FinancialEntry[];
+  dateLabel: string;
+  pairs: TransferPair[];
   accountById: Map<string, Account>;
   saving: boolean;
+  openActionMenuId: string | null;
+  onToggleActionMenu: (groupId: string) => void;
+  onToggleStatus: (groupId: string) => void;
+  onEdit: (groupId: string) => void;
+  onDelete: (groupId: string) => void;
+}) {
+  return (
+    <section aria-label={`Transferências de ${dateLabel}`}>
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{dateLabel}</h3>
+        <span className="text-xs text-slate-500">{pairs.length} item(s)</span>
+      </div>
+      <div className="grid gap-2" role="list">
+        {pairs.map((pair) => (
+          <TransferListItem
+            key={pair.groupId}
+            pair={pair}
+            accountById={accountById}
+            saving={saving}
+            actionMenuOpen={openActionMenuId === pair.groupId}
+            onToggleActionMenu={() => onToggleActionMenu(pair.groupId)}
+            onToggleStatus={() => onToggleStatus(pair.groupId)}
+            onEdit={() => onEdit(pair.groupId)}
+            onDelete={() => onDelete(pair.groupId)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TransferListItem({
+  pair,
+  accountById,
+  saving,
+  actionMenuOpen,
+  onToggleActionMenu,
+  onToggleStatus,
+  onEdit,
+  onDelete,
+}: {
+  pair: TransferPair;
+  accountById: Map<string, Account>;
+  saving: boolean;
+  actionMenuOpen: boolean;
+  onToggleActionMenu: () => void;
   onToggleStatus: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const reference = legs[0]!;
+  const { origin, destination } = pair;
+  const reference = origin;
   const amount = Number(reference.expected_amount);
   const isPaid = reference.status === "paid";
-  const originLeg = legs.find((leg) => leg.entry_type === "expense");
-  const destinationLeg = legs.find((leg) => leg.entry_type === "income");
-  const originName = originLeg?.account_id ? accountById.get(originLeg.account_id)?.name ?? "Origem" : "Origem";
-  const destinationName = destinationLeg?.account_id ? accountById.get(destinationLeg.account_id)?.name ?? "Destino" : "Destino";
+  const originName = origin.account_id ? accountById.get(origin.account_id)?.name ?? "Sem conta" : "Sem conta";
+  const destinationName = destination.account_id ? accountById.get(destination.account_id)?.name ?? "Sem conta" : "Sem conta";
+  const isIncomplete = !origin || !destination;
 
   return (
-    <div className="grid min-w-0 gap-3 rounded-2xl border border-white/10 bg-slate-950/25 p-3 shadow-lg shadow-slate-950/15 sm:p-4" data-testid="transfer-pair-card">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-cyan-400/10 text-cyan-200 ring-1 ring-cyan-300/20">
-            <ArrowLeftRight className="size-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <p className="break-words text-sm font-semibold text-slate-50">{reference.description}</p>
-            <p className="mt-0.5 truncate text-xs text-slate-400">{originName} → {destinationName}</p>
+    <div className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/25 p-3 transition hover:bg-white/[0.04]" role="listitem" data-testid="transfer-pair-card">
+      <input
+        type="checkbox"
+        checked={isPaid}
+        disabled={saving}
+        onChange={onToggleStatus}
+        aria-label={isPaid ? `Voltar ${reference.description} para previsto` : `Marcar ${reference.description} como realizado`}
+        className="size-5 shrink-0 rounded-md border-white/20 bg-slate-950 accent-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+      />
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-cyan-400/10 text-cyan-200 ring-1 ring-cyan-300/20">
+          <ArrowLeftRight className="size-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-sm font-semibold text-slate-50">{reference.description}</p>
+            <span className="hidden shrink-0 rounded-full bg-cyan-400/10 px-2 py-0.5 text-[0.65rem] font-semibold text-cyan-200 ring-1 ring-cyan-300/20 sm:inline">Transferência</span>
+          </div>
+          <p className="truncate text-xs text-slate-400">{originName} → {destinationName}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 sm:hidden">
+            <span className="rounded-full bg-cyan-400/10 px-1.5 py-0.5 text-[0.65rem] font-semibold text-cyan-200 ring-1 ring-cyan-300/20">Transferência</span>
+            {isIncomplete ? <span className="rounded-full bg-rose-400/10 px-1.5 py-0.5 text-[0.65rem] font-semibold text-rose-200 ring-1 ring-rose-300/20">Par incompleto</span> : null}
           </div>
         </div>
-        <p className="shrink-0 text-sm font-black tracking-[-0.03em] text-cyan-200">{formatCurrency(amount)}</p>
       </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <span className="rounded-full bg-cyan-400/10 px-2 py-0.5 text-[0.68rem] font-semibold text-cyan-200 ring-1 ring-cyan-300/20">Transferência</span>
-        <span className={`rounded-full px-2 py-0.5 text-[0.68rem] font-semibold ring-1 ${isPaid ? "bg-emerald-400/10 text-emerald-200 ring-emerald-300/15" : "bg-[#f5c76b]/10 text-[#f5c76b] ring-[#f5c76b]/15"}`}>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <p className="text-sm font-black tracking-[-0.03em] text-cyan-200">{formatCurrency(amount)}</p>
+        <span className={`rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ring-1 ${isPaid ? "bg-emerald-400/10 text-emerald-200 ring-emerald-300/15" : "bg-[#f5c76b]/10 text-[#f5c76b] ring-[#f5c76b]/15"}`}>
           {isPaid ? "Realizado" : "Previsto"}
         </span>
-        {legs.length < 2 ? <span className="rounded-full bg-rose-400/10 px-2 py-0.5 text-[0.68rem] font-semibold text-rose-200 ring-1 ring-rose-300/20">Par incompleto</span> : null}
       </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-300">
-          <input
-            type="checkbox"
-            checked={isPaid}
-            disabled={saving}
-            onChange={onToggleStatus}
-            aria-label={isPaid ? `Voltar ${reference.description} para previsto` : `Marcar ${reference.description} como realizado`}
-            className="size-5 rounded-md border-white/20 bg-slate-950 accent-emerald-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
-          />
-          {isPaid ? "Realizado" : "Marcar realizado"}
-        </label>
-        <span className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={onEdit} className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08]" aria-label={`Editar transferência ${reference.description}`}>
-            <Pencil className="size-3.5" aria-hidden="true" />
-            Editar par
-          </button>
-          <button type="button" onClick={onDelete} className="flex items-center gap-1.5 rounded-xl border border-rose-300/15 bg-rose-400/[0.08] px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/[0.14]" aria-label={`Excluir transferência ${reference.description}`}>
-            <Trash2 className="size-3.5" aria-hidden="true" />
-            Excluir
-          </button>
-        </span>
+      <div className="relative shrink-0">
+        <button
+          type="button"
+          onClick={onToggleActionMenu}
+          className="rounded-xl p-2 text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+          aria-label={`Ações de ${reference.description}`}
+          aria-expanded={actionMenuOpen}
+        >
+          <MoreVertical className="size-4" aria-hidden="true" />
+        </button>
+        {actionMenuOpen ? (
+          <div className="absolute right-0 top-full z-20 mt-1 w-40 rounded-2xl border border-white/10 bg-[#0d121c] p-1 shadow-xl">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-white/[0.08]"
+            >
+              <Pencil className="size-3.5" aria-hidden="true" />
+              Editar par
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-rose-400/[0.10]"
+            >
+              <Trash2 className="size-3.5" aria-hidden="true" />
+              Excluir
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

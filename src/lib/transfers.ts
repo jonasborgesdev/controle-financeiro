@@ -170,6 +170,41 @@ export function buildTransferPair(input: {
   ];
 }
 
+export type TransferPair = {
+  groupId: string;
+  origin: FinancialEntry;
+  destination: FinancialEntry;
+};
+
+function transferPairs(entries: FinancialEntry[]): TransferPair[] {
+  const byGroup = new Map<string, FinancialEntry[]>();
+  for (const entry of entries) {
+    if (!entry.transfer_group_id) continue;
+    const group = byGroup.get(entry.transfer_group_id) ?? [];
+    group.push(entry);
+    byGroup.set(entry.transfer_group_id, group);
+  }
+
+  const pairs: TransferPair[] = [];
+  for (const [groupId, groupEntries] of byGroup) {
+    const origin = groupEntries.find((entry) => entry.entry_type === "expense") ?? groupEntries[0];
+    const destination = groupEntries.find((entry) => entry.entry_type === "income") ?? groupEntries[1];
+    if (!origin || !destination) continue;
+    pairs.push({ groupId, origin, destination });
+  }
+  return pairs;
+}
+
+export function buildTransferPairs(entries: FinancialEntry[], accountId = "all"): TransferPair[] {
+  const pairs = transferPairs(entries);
+  if (accountId === "all") return pairs;
+  return pairs.filter((pair) => pair.origin.account_id === accountId || pair.destination.account_id === accountId);
+}
+
+export function transferPairTouchesAccount(pair: TransferPair, accountId: string): boolean {
+  return pair.origin.account_id === accountId || pair.destination.account_id === accountId;
+}
+
 /** Encontra o par de uma transferência a partir do grupo. */
 export function findTransferPair<T extends TransferLike & { id: string }>(entries: T[], groupId: string): T[] {
   return entries.filter((entry) => entry.transfer_group_id === groupId);

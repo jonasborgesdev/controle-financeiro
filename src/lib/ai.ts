@@ -86,17 +86,22 @@ export function getAiFallbackProviderConfig(primaryProvider: AiProvider) {
   return { provider, model, configured: Boolean(apiKey), apiKey: apiKey ?? null };
 }
 
-export function buildAiInputSummary(input: { analysisType: AiAnalysisType; periodStart: string; periodEnd: string; entries: FinancialEntry[]; trendEntries?: FinancialEntry[]; accounts: Account[]; categories: Category[]; goals: SavingsGoal[]; financings: Financing[] }) : AiInputSummary {
+export function buildAiInputSummary(input: { analysisType: AiAnalysisType; periodStart: string; periodEnd: string; entries: FinancialEntry[]; trendEntries?: FinancialEntry[]; accounts: Account[]; categories: Category[]; goals: SavingsGoal[]; financings: Financing[]; accountId?: string | undefined }) : AiInputSummary {
   // Semana 10.2: transferências saem dos totais/candidatos/tendência e viram
   // movimentação interna citada à parte (nunca receita nova nem corte).
-  const { real: realEntries, internal: internalEntries } = splitEntries(input.entries, input.categories);
-  const { real: realTrendEntries } = splitEntries(input.trendEntries ?? input.entries, input.categories);
+  const selectedAccountId = input.accountId ?? "all";
+  const scopedAccounts = selectedAccountId === "all" ? input.accounts : input.accounts.filter((account) => account.id === selectedAccountId);
+  const scopedEntries = selectedAccountId === "all" ? input.entries : input.entries.filter((entry) => entry.account_id === selectedAccountId);
+  const scopedTrendEntries = selectedAccountId === "all" ? (input.trendEntries ?? input.entries) : (input.trendEntries ?? input.entries).filter((entry) => entry.account_id === selectedAccountId);
+  const scopedFinancings = selectedAccountId === "all" ? input.financings : input.financings.filter((financing) => financing.account_id === selectedAccountId);
+  const { real: realEntries, internal: internalEntries } = splitEntries(scopedEntries, input.categories);
+  const { real: realTrendEntries } = splitEntries(scopedTrendEntries, input.categories);
   const internalTotals = summarizeInternalMovements(internalEntries);
   const entries = realEntries;
   const periodLabel = input.periodStart.slice(0, 7) === input.periodEnd.slice(0, 7) ? input.periodStart.slice(0, 7) : `${input.periodStart} a ${input.periodEnd}`;
   const year = Number(input.periodStart.slice(0, 4));
-  const monthly = buildMonthlyReport(entries, input.accounts, input.categories, input.goals);
-  const annual = buildAnnualReport(entries, input.accounts, input.categories, input.goals, year);
+  const monthly = buildMonthlyReport(entries, scopedAccounts, input.categories, input.goals);
+  const annual = buildAnnualReport(entries, scopedAccounts, input.categories, input.goals, year);
   const report = input.analysisType === "annual" || input.analysisType === "planning" ? annual : monthly;
   const summary = report.summary;
   const byCategory = report.byCategory
@@ -127,7 +132,7 @@ export function buildAiInputSummary(input: { analysisType: AiAnalysisType; perio
   const remainingEstimated = activeFinancings.reduce((total, financing) => total + Math.max(0, financing.total_installments - financing.paid_installments) * Number(financing.installment_amount), 0);
   const trend = monthlyTrend(realTrendEntries);
   const alerts = buildAggregatedAlerts(summary, byCategory, monthlyTarget, monthlyCommitment);
-  const adjustableEntries = buildAdjustableEntries(entries, input.accounts, input.categories, categoriesOverPlanned.map((category) => category.name));
+  const adjustableEntries = buildAdjustableEntries(entries, scopedAccounts, input.categories, categoriesOverPlanned.map((category) => category.name));
   const counts = {
     entries: entries.length,
     paidEntries: entries.filter((entry) => entry.status === "paid").length,
@@ -359,7 +364,7 @@ export const listAiAnalyses = createServerFn({ method: "POST" })
   });
 
 export const generateAiAnalysis = createServerFn({ method: "POST" })
-  .validator((data: unknown) => data as { accessToken: string; analysisType: AiAnalysisType; periodStart: string; periodEnd: string; force?: boolean })
+  .validator((data: unknown) => data as { accessToken: string; analysisType: AiAnalysisType; periodStart: string; periodEnd: string; force?: boolean; accountId?: string })
   .handler(async ({ data }) => {
     const userId = await requireAuthenticatedUser(data.accessToken);
     if (data.analysisType !== "monthly" && data.analysisType !== "annual" && data.analysisType !== "savings" && data.analysisType !== "planning") {
@@ -377,7 +382,7 @@ export const generateAiAnalysis = createServerFn({ method: "POST" })
     const settings = await loadAiSettings(supabase, userId);
     if (!settings?.enabled) throw new Error("IA desativada. Ative em Configurações antes de gerar análises.");
 
-    const summary = await loadAndSummarize(supabase, userId, data.analysisType, data.periodStart, data.periodEnd);
+    const summary = await loadAndSummarize(supabase, userId, data.analysisType, data.periodStart, data.periodEnd, data.accountId);
     if (summary.totals.expectedIncome === 0 && summary.totals.expectedExpenses === 0 && summary.totals.actualIncome === 0 && summary.totals.actualExpenses === 0) {
       throw new Error("Dados insuficientes para análise. Cadastre lançamentos previstos ou realizados no período.");
     }
@@ -409,7 +414,7 @@ export const generateAiAnalysis = createServerFn({ method: "POST" })
     return { analysis: saved as AiAnalysis, cached: false, parsed: validateAiResponse(parseAiResponse(aiResult.text), summary) };
   });
 
-async function loadAndSummarize(supabase: ReturnType<typeof createServerSupabase>, userId: string, analysisType: AiAnalysisType, periodStart: string, periodEnd: string) {
+async function loadAndSummarize(supabase: ReturnType<typeof createServerSupabase>, userId: string, analysisType: AiAnalysisType, periodStart: string, periodEnd: string, accountId?: string) {
   const trendStart = shiftDateMonth(periodStart, -5);
   const [entriesResult, trendEntriesResult, accountsResult, categoriesResult, goalsResult, financingsResult] = await Promise.all([
     supabase.from("financial_entries").select(entryColumns).eq("user_id", userId).gte("due_date", periodStart).lte("due_date", periodEnd).order("due_date"),
@@ -433,6 +438,7 @@ async function loadAndSummarize(supabase: ReturnType<typeof createServerSupabase
     categories: categoriesResult.data as Category[] ?? [],
     goals: goalsResult.data as SavingsGoal[] ?? [],
     financings: financingsResult.error ? [] : financingsResult.data as Financing[] ?? [],
+    accountId,
   });
 }
 

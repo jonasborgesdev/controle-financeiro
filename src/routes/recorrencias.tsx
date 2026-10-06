@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { useAccountScope } from "@/lib/account-scope";
 import { dueDateForMonth, formatCurrency, isFinanceClassification, monthLabel, monthKey, parseMonthKey, recurringRuleAppliesToMonth } from "@/lib/finance";
 import { DESCRIPTION_MAX_LENGTH, NOTES_MAX_LENGTH, parseMoneyAmount, sanitizeText } from "@/lib/security";
 import { createClient } from "@/lib/supabase/client";
@@ -57,6 +58,7 @@ export const Route = createFileRoute("/recorrencias")({
 
 function RecurringRulesPage() {
   const { user } = Route.useRouteContext();
+  const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -71,6 +73,7 @@ function RecurringRulesPage() {
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
   const visibleCategories = categories.filter((category) => category.type === form.entry_type && isFinanceClassification(category, user.id));
+  const filteredRules = selectedAccountId === "all" ? rules : rules.filter((rule) => rule.account_id === selectedAccountId);
 
   const loadData = async () => {
     setLoading(true);
@@ -150,7 +153,8 @@ function RecurringRulesPage() {
 
   const openNew = (entryType?: "income" | "expense") => {
     setEditingId(null);
-    setForm({ ...emptyForm, entry_type: entryType ?? "expense" });
+    const defaultAccountId = selectedAccountId === "all" ? "" : selectedAccountId;
+    setForm({ ...emptyForm, entry_type: entryType ?? "expense", account_id: defaultAccountId });
     setModalOpen(true);
   };
 
@@ -246,13 +250,13 @@ function RecurringRulesPage() {
         <Card>
           <CardHeader>
             <CardTitle>Regras recorrentes</CardTitle>
-            <CardDescription>{rules.filter((rule) => rule.is_active).length} regra(s) ativa(s)</CardDescription>
+            <CardDescription>{filteredRules.filter((rule) => rule.is_active).length} regra(s) ativa(s)</CardDescription>
           </CardHeader>
           <CardContent>
             {error ? <div className="mb-4 rounded-xl border border-rose-300/20 bg-rose-400/[0.10] p-3 text-sm text-rose-100">{error}</div> : null}
             {loading ? <p className="text-sm text-slate-400">Carregando...</p> : null}
             <div className="grid gap-3">
-              {rules.map((rule) => (
+              {filteredRules.map((rule) => (
                 <div key={rule.id} className="rounded-2xl border border-white/10 bg-white/[0.05] p-3 shadow-sm sm:p-4">
                   <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
                     <div className="min-w-0">
@@ -275,7 +279,7 @@ function RecurringRulesPage() {
                   </div>
                 </div>
               ))}
-              {!loading && rules.length === 0 ? <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Nenhuma regra recorrente cadastrada.</p> : null}
+              {!loading && filteredRules.length === 0 ? <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Nenhuma regra recorrente cadastrada.</p> : null}
             </div>
           </CardContent>
         </Card>

@@ -6,6 +6,7 @@ import { buildAiInputSummary } from "@/lib/ai";
 import {
   TRANSFER_CATEGORY_NAME,
   buildTransferPair,
+  buildTransferPairs,
   defaultTransferDescription,
   findTransferPair,
   isInternalTransfer,
@@ -193,6 +194,30 @@ describe("identificação de transferência", () => {
     const entries = [makeEntry({ id: "other" }), ...makeTransferLegs()];
     expect(findTransferPair(entries, "group-123")).toHaveLength(2);
     expect(findTransferPair(entries, "missing")).toHaveLength(0);
+  });
+
+  it("agrupa pares por grupo e filtra por conta que toca o par", () => {
+    const pairA = makeTransferLegs(100).map((entry) => ({ ...entry, transfer_group_id: "group-a" }));
+    const pairB = [
+      makeEntry({ id: "b-expense", entry_type: "expense", account_id: "account-origem", source: "transfer", transfer_group_id: "group-b", expected_amount: 200, actual_amount: 200, description: "Transferência B" }),
+      makeEntry({ id: "b-income", entry_type: "income", account_id: "account-outro", source: "transfer", transfer_group_id: "group-b", expected_amount: 200, actual_amount: 200, description: "Transferência B" }),
+    ];
+    const entries = [...pairA, ...pairB];
+    const allPairs = buildTransferPairs(entries, "all");
+    expect(allPairs).toHaveLength(2);
+
+    const originPairs = buildTransferPairs(entries, "account-origem");
+    expect(originPairs).toHaveLength(2);
+    expect(originPairs.map((pair) => pair.groupId)).toContain("group-a");
+    expect(originPairs.map((pair) => pair.groupId)).toContain("group-b");
+
+    const destinationPairs = buildTransferPairs(entries, "account-destino");
+    expect(destinationPairs).toHaveLength(1);
+    expect(destinationPairs[0]?.groupId).toBe("group-a");
+
+    const otherPairs = buildTransferPairs(entries, "account-outro");
+    expect(otherPairs).toHaveLength(1);
+    expect(otherPairs[0]?.groupId).toBe("group-b");
   });
 
   it("gera descrição padrão Origem → Destino", () => {

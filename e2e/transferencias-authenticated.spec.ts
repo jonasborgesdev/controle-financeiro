@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { chooseMonth, createE2EUser, deleteE2EUser, hasE2EEnv, login } from "./helpers";
+import { chooseAccountScope, chooseMonth, createE2EUser, deleteE2EUser, hasE2EEnv, login } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -49,10 +49,13 @@ test.describe("transferências entre contas", () => {
     await expect(page).toHaveURL(/\/transferencias/);
     await chooseMonth(page, "transfers-month", monthValue);
 
+    // Pré-seleciona a conta global para validar a pré-seleção na origem
+    await chooseAccountScope(page, originId);
+
     await page.getByRole("button", { name: "Nova transferência" }).click();
     await expect(page.getByRole("dialog", { name: "Nova transferência" })).toBeVisible();
+    await expect(page.getByLabel("Conta origem")).toHaveValue(originId);
 
-    await page.getByLabel("Conta origem").selectOption(originId);
     await page.getByLabel("Conta destino").selectOption(destinationId);
     await page.getByLabel("Valor").fill("250");
     await page.getByLabel("Descrição").fill(transferDescription);
@@ -61,7 +64,10 @@ test.describe("transferências entre contas", () => {
     const pairCard = page.locator("[data-testid='transfer-pair-card']", { hasText: transferDescription });
     await expect(pairCard).toBeVisible();
     await expect(pairCard.getByText("Transferência", { exact: true }).first()).toBeVisible();
-    await expect(pairCard.getByText("R$ 250,00")).toBeVisible();
+    await expect(pairCard.getByText("R$ 250,00")).toBeVisible();
+
+    // Volta para "Todas as contas" antes de conferir os dois lados em Lançamentos
+    await chooseAccountScope(page, "all");
 
     // Os 2 lados aparecem em Lançamentos com badge, sem virar receita/despesa.
     await page.getByRole("link", { name: /Ganhos\/Gastos|Lançamentos/ }).first().click();
@@ -90,8 +96,9 @@ test.describe("transferências entre contas", () => {
     await pairCard.getByRole("checkbox").click();
     await expect(pairCard.getByText("Realizado", { exact: true }).first()).toBeVisible();
 
+    await pairCard.getByRole("button", { name: `Ações de ${transferDescription}` }).click();
     page.once("dialog", (dialog) => dialog.accept());
-    await pairCard.getByRole("button", { name: `Excluir transferência ${transferDescription}` }).click();
+    await page.getByRole("button", { name: "Excluir" }).click();
     await expect(page.locator("[data-testid='transfer-pair-card']", { hasText: transferDescription })).toHaveCount(0);
   });
 });

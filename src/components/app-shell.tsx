@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { ArrowLeftRight, Banknote, BarChart3, BrainCircuit, CalendarClock, ChevronRight, CircleDollarSign, CreditCard, Home, Layers3, LineChart, Plus, ReceiptText, Settings, Upload, X } from "lucide-react";
+import { useAccountScope } from "@/lib/account-scope";
+import { createClient } from "@/lib/supabase/client";
+import { AccountSelector } from "@/components/account-selector";
 import LogoutButton from "@/components/auth/logout-button";
 
 const navItems = [
@@ -26,6 +29,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = location.pathname;
   const currentItem = navItems.find((item) => item.to === pathname) ?? navItems[0];
   const [moreOpen, setMoreOpen] = useState(false);
+  const { accounts, setAccounts } = useAccountScope();
+
+  useEffect(() => {
+    if (accounts.length > 0) return;
+    let cancelled = false;
+    const loadAccounts = async () => {
+      const supabase = createClient();
+      const { data } = await supabase.auth.getSession();
+      if (!data.session || cancelled) return;
+      const { data: accountsResult } = await supabase
+        .from("accounts")
+        .select("id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at")
+        .eq("is_active", true)
+        .order("name");
+      if (!cancelled) setAccounts(accountsResult ?? []);
+    };
+    void loadAccounts();
+    return () => { cancelled = true; };
+  }, [accounts.length, setAccounts]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -43,7 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_12%_18%,rgba(16,185,129,0.18),transparent_24rem),radial-gradient(circle_at_86%_8%,rgba(34,211,238,0.14),transparent_26rem),linear-gradient(180deg,#070A0F_0%,#0A1018_48%,#070A0F_100%)]" />
       <div className="mx-auto grid min-h-screen w-full max-w-[92rem] lg:grid-cols-[17rem_1fr]">
         <aside className="safe-pt hidden min-h-screen p-4 lg:block">
-          <div className="finance-glass fixed top-4 z-40 flex h-[calc(100vh-2rem)] w-[15rem] flex-col rounded-[1.75rem] p-4 lg:left-[max(1rem,calc((100vw-92rem)/2+1rem))]">
+          <div className="finance-glass fixed top-4 z-40 flex h-[calc(100vh-2rem)] w-[15rem] flex-col overflow-y-auto rounded-[1.75rem] p-4 lg:left-[max(1rem,calc((100vw-92rem)/2+1rem))]">
             <div className="flex items-center gap-3 px-2 py-2">
               <div className="grid size-11 place-items-center rounded-2xl bg-emerald-400 text-[#02140f] shadow-lg shadow-emerald-950/30">
                 <CircleDollarSign className="size-6" aria-hidden="true" />
@@ -54,7 +76,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            <nav className="mt-8 grid gap-1" aria-label="Navegação principal">
+            <div className="mt-6">
+              <AccountSelector variant="desktop" />
+            </div>
+
+            <nav className="mt-6 grid gap-1" aria-label="Navegação principal">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -86,11 +112,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="min-w-0">
           <header className="safe-pt sticky top-0 z-30 border-b border-white/10 bg-[#070a0f]/78 px-4 pb-3 backdrop-blur-2xl lg:hidden">
             <div className="flex items-center justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Controle Financeiro</p>
                 <h1 className="text-xl font-bold tracking-[-0.04em] text-white">{currentItem.label}</h1>
               </div>
-              <LogoutButton />
+              <div className="flex shrink-0 items-center gap-2">
+                <AccountSelector variant="mobile" />
+                <LogoutButton />
+              </div>
             </div>
           </header>
 

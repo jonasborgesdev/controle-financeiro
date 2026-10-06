@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { filterEntriesByAccount, useAccountScope } from "@/lib/account-scope";
 import { TRANSFER_CATEGORY_NAME } from "@/lib/transfers";
 import { AppShell } from "@/components/app-shell";
 import { DatePicker } from "@/components/date-picker";
@@ -11,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { compactEntryDateLabel, entryDisplayAmount, entryEffectiveDate, entryStatusPatch, formatCurrency, groupEntriesByEffectiveDate, isFinanceClassification, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
+import { compactEntryDateLabel, entryActualSignedAmount, entryDisplayAmount, entryEffectiveDate, entryStatusPatch, formatCurrency, groupEntriesByEffectiveDate, isFinanceClassification, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
 import { DESCRIPTION_MAX_LENGTH, NOTES_MAX_LENGTH, isValidDateString, parseMoneyAmount, sanitizeText } from "@/lib/security";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, Financing, MonthlyBalance } from "@/types/database";
@@ -67,9 +68,11 @@ export const Route = createFileRoute("/transacoes")({
 
 function EntriesPage() {
   const { user } = Route.useRouteContext();
+  const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
+  const [balanceEntries, setBalanceEntries] = useState<FinancialEntry[]>([]);
   const [balances, setBalances] = useState<MonthlyBalance[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -84,8 +87,17 @@ function EntriesPage() {
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
   const visibleCategories = categories.filter((category) => category.type === form.entry_type && isFinanceClassification(category, user.id));
-  const summary = summarizeEntries(entries);
-  const groupedEntries = groupEntriesByEffectiveDate(entries);
+  const filteredEntries = filterEntriesByAccount(entries, selectedAccountId);
+  const summary = summarizeEntries(filteredEntries, { includeTransfers: selectedAccountId !== "all" });
+  const selectedAccounts = selectedAccountId === "all" ? accounts : accounts.filter((account) => account.id === selectedAccountId);
+  const filteredBalanceEntries = filterEntriesByAccount(balanceEntries, selectedAccountId);
+  const monthStart = `${selectedMonth}-01`;
+  const balanceBeforeMonth = selectedAccounts.reduce((total, account) => {
+    return total + filteredBalanceEntries
+      .filter((entry) => entry.account_id === account.id && entry.status === "paid" && entryEffectiveDate(entry) < monthStart)
+      .reduce((balance, entry) => balance + entryActualSignedAmount(entry), Number(account.initial_balance ?? 0));
+  }, 0);
+  const groupedEntries = groupEntriesByEffectiveDate(filteredEntries);
   const editingEntry = editingId ? entries.find((entry) => entry.id === editingId) ?? null : null;
   const isEditingTransfer = editingEntry != null && (editingEntry.source === "transfer" || Boolean(editingEntry.transfer_group_id));
 
@@ -96,12 +108,17 @@ function EntriesPage() {
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
     try {
-      const [entriesResult, balancesResult, accountsResult, categoriesResult] = await Promise.all([
+      const [entriesResult, balanceEntriesResult, balancesResult, accountsResult, categoriesResult] = await Promise.all([
         supabase.from("financial_entries").select(entryColumns)
           .eq("user_id", user.id)
           .or(`and(due_date.gte.${startDate},due_date.lte.${endDate}),and(paid_date.gte.${startDate},paid_date.lte.${endDate})`)
           .order("due_date", { ascending: false })
           .limit(1000),
+        supabase.from("financial_entries").select("id,account_id,entry_type,status,expected_amount,actual_amount,paid_date,due_date")
+          .eq("user_id", user.id)
+          .eq("status", "paid")
+          .order("due_date", { ascending: false })
+          .limit(5000),
         supabase.from("monthly_balances").select(balanceColumns).eq("year", year).eq("month", month),
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).order("type").order("name"),
@@ -115,6 +132,7 @@ function EntriesPage() {
         const effectiveDate = entryEffectiveDate(entry);
         return effectiveDate >= startDate && effectiveDate <= endDate;
       }));
+      setBalanceEntries((balanceEntriesResult.data ?? []) as unknown as FinancialEntry[]);
       setBalances(balancesResult.data ?? []);
       setAccounts(accountsResult.data ?? []);
       setCategories(categoriesResult.data ?? []);
@@ -152,7 +170,13 @@ function EntriesPage() {
 
   const openNewEntry = (entryType?: "income" | "expense") => {
     setEditingId(null);
-    setForm({ ...emptyForm, entry_type: entryType ?? "expense", due_date: `${selectedMonth}-${String(new Date().getDate()).padStart(2, "0")}` });
+    const defaultAccountId = selectedAccountId === "all" ? "" : selectedAccountId;
+    setForm({
+      ...emptyForm,
+      entry_type: entryType ?? "expense",
+      account_id: defaultAccountId,
+      due_date: `${selectedMonth}-${String(new Date().getDate()).padStart(2, "0")}`,
+    });
     setModalOpen(true);
   };
 
@@ -299,7 +323,7 @@ function EntriesPage() {
           </div>
         </PageHero>
 
-        <SummaryCharts summary={summary} />
+        <SummaryCharts summary={summary} balanceBeforeMonth={balanceBeforeMonth} />
 
         <Card className="overflow-visible">
           <CardHeader>
@@ -403,8 +427,11 @@ function EntriesPage() {
   );
 }
 
-function SummaryCharts({ summary }: { summary: ReturnType<typeof summarizeEntries> }) {
-  const balanceMax = Math.max(Math.abs(summary.expectedBalance), Math.abs(summary.actualBalance), 1);
+function SummaryCharts({ summary, balanceBeforeMonth }: { summary: ReturnType<typeof summarizeEntries>; balanceBeforeMonth?: number }) {
+  const base = balanceBeforeMonth ?? 0;
+  const expectedBalance = base + summary.expectedBalance;
+  const actualBalance = base + summary.actualBalance;
+  const balanceTone = actualBalance < 0 || expectedBalance < 0 ? "danger" : "income";
 
   return (
     <div className="grid gap-3 lg:grid-cols-3">
@@ -424,12 +451,20 @@ function SummaryCharts({ summary }: { summary: ReturnType<typeof summarizeEntrie
         actual={summary.actualExpenses}
         tone={summary.actualExpenses > summary.expectedExpenses ? "danger" : "expense"}
       />
-      <BalanceBarCard planned={summary.expectedBalance} actual={summary.actualBalance} max={balanceMax} />
+      <SummaryBarCard
+        title="Saldo"
+        plannedLabel="Previsto"
+        actualLabel="Realizado"
+        planned={expectedBalance}
+        actual={actualBalance}
+        tone={balanceTone}
+        helper={base !== 0 ? `Inclui saldo anterior: ${formatCurrency(base)}` : undefined}
+      />
     </div>
   );
 }
 
-function SummaryBarCard({ title, plannedLabel, actualLabel, planned, actual, tone }: { title: string; plannedLabel: string; actualLabel: string; planned: number; actual: number; tone: "income" | "expense" | "danger" }) {
+function SummaryBarCard({ title, plannedLabel, actualLabel, planned, actual, tone, helper }: { title: string; plannedLabel: string; actualLabel: string; planned: number; actual: number; tone: "income" | "expense" | "danger"; helper?: string | undefined }) {
   const palette = {
     income: { card: "border-emerald-300/18 bg-emerald-400/[0.08]", text: "text-emerald-200", muted: "text-emerald-300", track: "bg-emerald-400/15", fill: "bg-emerald-400" },
     expense: { card: "border-rose-300/18 bg-rose-400/[0.08]", text: "text-rose-200", muted: "text-rose-300", track: "bg-rose-400/15", fill: "bg-rose-400" },
@@ -456,35 +491,7 @@ function SummaryBarCard({ title, plannedLabel, actualLabel, planned, actual, ton
         <span>{plannedLabel}: {formatCurrency(planned)}</span>
         <span>{actualLabel}: {formatCurrency(actual)}</span>
       </div>
-    </div>
-  );
-}
-
-function BalanceBarCard({ planned, actual, max }: { planned: number; actual: number; max: number }) {
-  const plannedTone = planned < 0 ? "text-rose-300" : "text-cyan-200";
-  const actualFill = actual < 0 ? "bg-rose-400" : "bg-cyan-300";
-  const plannedWidth = Math.max((Math.abs(planned) / max) * 100, planned !== 0 ? 8 : 0);
-  const actualWidth = Math.max((Math.abs(actual) / max) * 100, actual !== 0 ? 8 : 0);
-
-  return (
-    <div className="rounded-2xl border border-cyan-300/18 bg-cyan-400/[0.08] p-4 shadow-lg shadow-slate-950/15">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-cyan-200">Saldo previsto</p>
-          <p className={`mt-2 text-xl font-black tracking-[-0.04em] ${plannedTone}`}>{formatCurrency(planned)}</p>
-        </div>
-        <p className="text-right text-xs text-slate-400">realizado {formatCurrency(actual)}</p>
-      </div>
-      <div className="mt-4 grid gap-2">
-        <div>
-          <div className="mb-1 flex justify-between text-xs text-slate-400"><span>Previsto</span><span>{formatCurrency(planned)}</span></div>
-          <div className="h-3 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-slate-400" style={{ width: `${plannedWidth}%` }} /></div>
-        </div>
-        <div>
-          <div className="mb-1 flex justify-between text-xs text-slate-400"><span>Realizado</span><span>{formatCurrency(actual)}</span></div>
-          <div className="h-3 overflow-hidden rounded-full bg-white/10"><div className={`h-full rounded-full ${actualFill}`} style={{ width: `${actualWidth}%` }} /></div>
-        </div>
-      </div>
+      {helper ? <p className="mt-2 text-xs text-slate-500">{helper}</p> : null}
     </div>
   );
 }
@@ -573,7 +580,11 @@ function EntryListItem({
   const checkboxClassName = isPaid ? "accent-emerald-400" : "accent-[#f5c76b]";
 
   return (
-    <div className={`group relative grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-1.5 border-b border-b-white/8 px-2 py-2.5 pl-3.5 first:rounded-t-2xl last:rounded-b-2xl last:border-b-0 sm:min-h-[3.75rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto] sm:gap-3 sm:px-3 sm:pl-4 ${rowToneClassName}`} data-testid="entry-list-item">
+    <div
+      className={`group relative grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-1.5 border-b border-b-white/8 px-2 py-2.5 pl-3.5 first:rounded-t-2xl last:rounded-b-2xl last:border-b-0 sm:min-h-[3.75rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto] sm:gap-3 sm:px-3 sm:pl-4 ${rowToneClassName}`}
+      data-testid="entry-list-item"
+      data-account-id={entry.account_id ?? ""}
+    >
       <span aria-hidden="true" className={`absolute top-2.5 bottom-2.5 left-1.5 w-1 rounded-full ${accentBarClassName}`} />
       <div className="col-start-1 row-start-1 row-span-2 flex items-center justify-center sm:row-span-1">
         <input

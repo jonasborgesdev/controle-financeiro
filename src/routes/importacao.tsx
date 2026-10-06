@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAccountScope } from "@/lib/account-scope";
 import { formatCurrency, isFinanceClassification, monthLabel, parseMonthKey } from "@/lib/finance";
 import { importSummary, markDuplicates, parseStatement, suggestCategoryId, type ImportBank, type ImportFileType, type ReviewTransaction } from "@/lib/importer";
 import { DESCRIPTION_MAX_LENGTH, FILENAME_MAX_LENGTH, MAX_IMPORT_ROWS, isValidDateString, parseMoneyAmount, sanitizeText, validateUploadFile } from "@/lib/security";
@@ -32,11 +33,12 @@ export const Route = createFileRoute("/importacao")({
 
 function ImportPage() {
   const { user } = Route.useRouteContext();
+  const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [history, setHistory] = useState<ImportHistory[]>([]);
-  const [accountId, setAccountId] = useState("");
+  const [accountId, setAccountId] = useState(selectedAccountId === "all" ? "" : selectedAccountId);
   const [bank, setBank] = useState<ImportBank>("automatic");
   const [file, setFile] = useState<File | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewTransaction[]>([]);
@@ -67,6 +69,10 @@ function ImportPage() {
     setAccounts(accountsResult.data ?? []);
     setCategories(categoriesResult.data ?? []);
     setHistory(historyResult.data ?? []);
+    if (!accountId && selectedAccountId !== "all") {
+      const exists = accountsResult.data?.some((account) => account.id === selectedAccountId) ?? false;
+      if (exists) setAccountId(selectedAccountId);
+    }
     if (!accountId && accountsResult.data?.[0]) setAccountId(accountsResult.data[0].id);
     setLoading(false);
   };

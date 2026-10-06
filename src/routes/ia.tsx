@@ -7,6 +7,7 @@ import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { filterEntriesByAccount, useAccountScope } from "@/lib/account-scope";
 import { generateAiAnalysis, getAiStatus, listAiAnalyses, parseAiResponse, validateAiResponse, type AiAnalysisType, type AiInputSummary, type AiStructuredResponse } from "@/lib/ai";
 import { formatCurrency, monthBounds } from "@/lib/finance";
 import { createClient } from "@/lib/supabase/client";
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/ia")({
 
 function AiPage() {
   const search = Route.useSearch();
+  const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [analysisType, setAnalysisType] = useState<AiAnalysisType>(isAnalysisType(search.type) ? search.type : "monthly");
   const [selectedMonth, setSelectedMonth] = useState(search.month ?? currentMonth);
@@ -74,7 +76,7 @@ function AiPage() {
     setMessage(null);
     const { data } = await supabase.auth.getSession();
     try {
-      const result = await generateAiAnalysis({ data: { accessToken: data.session?.access_token ?? "", analysisType, periodStart: period.startDate, periodEnd: period.endDate, force } });
+      const result = await generateAiAnalysis({ data: { accessToken: data.session?.access_token ?? "", analysisType, periodStart: period.startDate, periodEnd: period.endDate, force, accountId: selectedAccountId } });
       const typedResult = result as { analysis: AiAnalysis; parsed: AiStructuredResponse; cached: boolean };
       setCurrentAnalysis(typedResult.analysis);
       setParsed(typedResult.parsed);

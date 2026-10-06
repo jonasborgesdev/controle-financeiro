@@ -31,13 +31,13 @@ test.describe("financiamentos autenticado", () => {
     await page.getByLabel("Banco").fill("Banco E2E");
     await page.getByLabel("Saldo inicial").fill("0");
     await page.getByRole("button", { name: "Salvar conta" }).click();
-    await expect(page.getByText(accountName)).toBeVisible();
+    await expect(page.getByRole("heading", { name: accountName })).toBeVisible();
 
     await page.getByRole("link", { name: "Categorias" }).click();
     await page.getByRole("button", { name: "Nova classificação de gasto" }).click();
     await page.getByRole("dialog", { name: "Nova classificação de gasto" }).getByLabel("Nome").fill(categoryName);
     await page.getByRole("dialog", { name: "Nova classificação de gasto" }).getByRole("button", { name: "Salvar classificação" }).click();
-    await expect(page.getByText(categoryName)).toBeVisible();
+    await expect(page.getByRole("heading", { name: categoryName })).toBeVisible();
 
     await page.getByRole("link", { name: "Financiamentos" }).click();
     await expect(page).toHaveURL(/\/financiamentos/);

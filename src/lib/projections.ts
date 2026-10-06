@@ -1,5 +1,5 @@
 import type { Account, Budget, Category, FinancialEntry, Financing, RecurringRule, SavingsGoal } from "@/types/database";
-import { dueDateForMonth, entryActualSignedAmount, entryProjectedSignedAmount, monthKey, recurringRuleAppliesToMonth } from "@/lib/finance";
+import { dueDateForMonth, entryActualSignedAmount, entryExpectedSignedAmount, entryProjectedSignedAmount, monthKey, recurringRuleAppliesToMonth } from "@/lib/finance";
 import { isInternalTransfer, transferCategoryIds } from "@/lib/transfers";
 
 export type ProjectionStatus = "healthy" | "attention" | "critical";
@@ -16,6 +16,7 @@ export type ProjectionMonth = {
   projectedIncome: number;
   projectedExpenses: number;
   projectedBalance: number;
+  transferNet: number;
   cumulativeBalance: number;
   savingsTarget: number;
   savingsGap: number;
@@ -50,6 +51,7 @@ type BuildProjectionInput = {
   financings: Financing[];
   accounts: Account[];
   categories?: Category[];
+  accountId?: string;
 };
 
 export function buildFinancialProjection(input: BuildProjectionInput): ProjectionSummary {
@@ -58,11 +60,16 @@ export function buildFinancialProjection(input: BuildProjectionInput): Projectio
   const projectionMonths = Array.from({ length: monthsToProject }, (_, index) => addMonths(input.startYear, input.startMonth, index));
   const firstMonth = projectionMonths[0]!;
   const firstMonthKey = monthKey(firstMonth.year, firstMonth.month);
-  // Semana 10.2: saldo inicial considera tudo (transferência movimenta conta),
-  // mas a projeção de receitas/despesas ignora movimentações internas.
-  const startingBalance = currentBalanceBeforeMonth(input.accounts, input.entries, firstMonthKey);
+  const selectedAccountId = input.accountId ?? "all";
+  const scopedAccounts = selectedAccountId === "all" ? input.accounts : input.accounts.filter((account) => account.id === selectedAccountId);
+  const scopedEntries = selectedAccountId === "all" ? input.entries : input.entries.filter((entry) => entry.account_id === selectedAccountId);
+  // Semana 10.3: quando filtrado por conta específica, transferências contam
+  // como receita/despesa daquele caixa (ex.: Santander recebe 6900 = é receita dela).
+  // Em "Todas as contas", transferências se cancelam e são excluídas dos totais.
+  const startingBalance = currentBalanceBeforeMonth(scopedAccounts, scopedEntries, firstMonthKey);
   const transferIds = transferCategoryIds(input.categories ?? []);
-  const realEntries = input.entries.filter((entry) => !isInternalTransfer(entry, transferIds));
+  const isFilteredByAccount = selectedAccountId !== "all";
+  const realEntries = isFilteredByAccount ? scopedEntries : scopedEntries.filter((entry) => !isInternalTransfer(entry, transferIds));
   const categoryById = new Map((input.categories ?? []).map((category) => [category.id, category]));
   const variableAverage = variableAverages(realEntries, categoryById, input.startYear, input.startMonth, averageWindowMonths);
   const activeGoal = input.savingsGoals.find((goal) => goal.is_active) ?? null;
@@ -101,6 +108,7 @@ export function buildFinancialProjection(input: BuildProjectionInput): Projectio
       projectedIncome,
       projectedExpenses,
       projectedBalance,
+      transferNet: 0,
       cumulativeBalance,
       savingsTarget,
       savingsGap,
@@ -134,7 +142,9 @@ export function buildFinancialProjection(input: BuildProjectionInput): Projectio
       "Recorrências ativas entram quando ainda não existe lançamento gerado para o mês.",
       "Orçamentos completam despesas por classificação quando o planejado está maior que os lançamentos existentes.",
       "Financiamentos ativos entram pelo lançamento já gerado ou pela parcela estimada do contrato.",
-      "Transferências entre contas não entram como receita/despesa (só movimentam saldos por conta).",
+      isFilteredByAccount
+        ? "Transferências entre contas contam como receita/despesa da conta selecionada (ex.: dinheiro recebido de outra conta é entrada)."
+        : "Transferências entre contas não entram como receita/despesa (só movimentam saldos por conta).",
       "A IA não participa do cálculo; ela pode apenas explicar dados em outra área do app.",
     ],
     alerts: buildProjectionAlerts(months),

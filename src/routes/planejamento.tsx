@@ -21,6 +21,7 @@ import {
   recurringRuleAppliesToMonth,
   summarizeEntries,
 } from "@/lib/finance";
+import { filterEntriesByAccount, useAccountScope } from "@/lib/account-scope";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Budget, Category, FinancialEntry, MonthlyBalance, RecurringRule, SavingsGoal } from "@/types/database";
 
@@ -61,6 +62,7 @@ export const Route = createFileRoute("/planejamento")({
 
 function PlanningPage() {
   const { user } = Route.useRouteContext();
+  const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
@@ -77,16 +79,18 @@ function PlanningPage() {
   const [error, setError] = useState<string | null>(null);
 
   const { year, month } = parseMonthKey(selectedMonth);
-  const summary = summarizeEntries(entries);
+  const filteredEntries = filterEntriesByAccount(entries, selectedAccountId);
+  const summary = summarizeEntries(filteredEntries, { includeTransfers: selectedAccountId !== "all" });
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
   const visibleExpenseCategories = categories.filter((category) => category.type === "expense" && isFinanceClassification(category, user.id));
-  const plannedRows = expensesByBudget(visibleExpenseCategories, budgets, entries);
+  const plannedRows = expensesByBudget(visibleExpenseCategories, budgets, filteredEntries);
   const activeGoal = activeSavingsGoal(goals);
   const goalProgress = activeGoal && activeGoal.monthly_target > 0 ? Math.max(0, Math.min(100, (summary.actualBalance / Number(activeGoal.monthly_target)) * 100)) : 0;
-  const recurringEntries = entries.filter((entry) => entry.source === "recurring");
+  const recurringEntries = filteredEntries.filter((entry) => entry.source === "recurring");
   const dueIncome = recurringEntries.filter((entry) => entry.entry_type === "income" && entry.status === "planned");
-  const monthRules = rules.filter((rule) => recurringRuleAppliesToMonth(rule, year, month));
+  const filteredRules = selectedAccountId === "all" ? rules : rules.filter((rule) => rule.account_id === selectedAccountId);
+  const monthRules = filteredRules.filter((rule) => recurringRuleAppliesToMonth(rule, year, month));
   const alerts = buildAlerts(summary, plannedRows, dueIncome, activeGoal);
 
   const loadData = async () => {
