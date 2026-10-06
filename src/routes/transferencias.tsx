@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ArrowLeftRight, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
@@ -13,6 +13,7 @@ import { Modal } from "@/components/ui/modal";
 import { useAccountScope } from "@/lib/account-scope";
 import { compactEntryDateLabel, entryEffectiveDate, entryStatusPatch, formatCurrency, monthLabel, parseMonthKey } from "@/lib/finance";
 import { DESCRIPTION_MAX_LENGTH, sanitizeText } from "@/lib/security";
+import { parseQuickAddParam } from "@/lib/quick-add";
 import { TRANSFER_CATEGORY_NAME, buildTransferPair, buildTransferPairs, defaultTransferDescription, findTransferPair, summarizeInternalMovements, tryAcquireTransferLock, validateTransferInput, type TransferPair, type TransferStatus } from "@/lib/transfers";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, MonthlyBalance } from "@/types/database";
@@ -46,6 +47,10 @@ const emptyForm: TransferForm = {
 };
 
 export const Route = createFileRoute("/transferencias")({
+  // Semana 10.4: ?novo=1 vem do QuickAddSheet global.
+  validateSearch: (search: Record<string, unknown>): { novo?: string | undefined } => ({
+    novo: typeof search["novo"] === "string" ? search["novo"] : undefined,
+  }),
   beforeLoad: async () => {
     const supabase = createClient();
     const { data } = await supabase.auth.getSession();
@@ -57,6 +62,8 @@ export const Route = createFileRoute("/transferencias")({
 
 function TransfersPage() {
   const { user } = Route.useRouteContext();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -148,13 +155,21 @@ function TransfersPage() {
     return defaultTransferDescription(origin, destination);
   };
 
-  const openNewTransfer = () => {
+  const openNewTransfer = useCallback(() => {
     setEditingGroupId(null);
     const defaultFromAccountId = selectedAccountId === "all" ? "" : selectedAccountId;
     const selectedDay = String(new Date().getDate()).padStart(2, "0");
     setForm({ ...emptyForm, fromAccountId: defaultFromAccountId, date: `${selectedMonth}-${selectedDay}` });
     setModalOpen(true);
-  };
+  }, [selectedAccountId, selectedMonth]);
+
+  // Semana 10.4: consome ?novo=1 do QuickAddSheet uma única vez e remove o
+  // parâmetro da URL (replace) para não reabrir no voltar/recarregar.
+  useEffect(() => {
+    if (parseQuickAddParam(search.novo) !== "transferencia") return;
+    openNewTransfer();
+    void navigate({ search: (previous) => ({ ...previous, novo: undefined }), replace: true });
+  }, [navigate, openNewTransfer, search.novo]);
 
   const openEditPair = (groupId: string) => {
     const pair = findTransferPair(entries, groupId);

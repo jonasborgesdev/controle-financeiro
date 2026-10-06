@@ -8,6 +8,10 @@ import {
   entryEffectiveDate,
   entryDisplayAmount,
   entryStatusPatch,
+  buildRealizationPatch,
+  buildStickySummary,
+  countEntriesByStatus,
+  realizationPrefill,
   entryActualSignedAmount,
   entryExpectedSignedAmount,
   entryProjectedSignedAmount,
@@ -304,6 +308,56 @@ describe("finance", () => {
   it("volta realizado para previsto sem apagar campos internos", () => {
     expect(entryStatusPatch({ ...baseEntry, status: "paid", actual_amount: 950, paid_date: "2026-09-28" }, "2026-10-01")).toEqual({ status: "planned" });
     expect(entryEffectiveDate({ ...baseEntry, status: "planned", due_date: "2026-09-10", paid_date: "2026-09-28" })).toBe("2026-09-10");
+  });
+
+  it("resumo sticky usa a mesma fonte dos cards (summary + saldo anterior)", () => {
+    const entries: FinancialEntry[] = [
+      { ...baseEntry, id: "paid-income", status: "paid", actual_amount: 950 },
+      { ...baseEntry, id: "planned-expense", entry_type: "expense", status: "planned", expected_amount: 400 },
+      { ...baseEntry, id: "paid-expense", entry_type: "expense", status: "paid", actual_amount: 280 },
+    ];
+    const summary = summarizeEntries(entries);
+
+    const sticky = buildStickySummary(summary, 250);
+    expect(sticky.expectedBalance).toBe(250 + summary.expectedBalance);
+    expect(sticky.actualBalance).toBe(250 + summary.actualBalance);
+    expect(sticky.actualBalance).toBe(250 + summary.actualIncome - summary.actualExpenses);
+
+    const withoutBase = buildStickySummary(summary);
+    expect(withoutBase.actualBalance).toBe(summary.actualBalance);
+    expect(withoutBase.expectedBalance).toBe(summary.expectedBalance);
+  });
+
+  it("conta realizados e previstos da lista visivel", () => {
+    expect(countEntriesByStatus([
+      { status: "paid" },
+      { status: "planned" },
+      { status: "paid" },
+    ])).toEqual({ paid: 2, planned: 1 });
+    expect(countEntriesByStatus([])).toEqual({ paid: 0, planned: 0 });
+  });
+
+  it("pre-preenche confirmacao com valor real existente ou previsto e data existente ou hoje", () => {
+    expect(realizationPrefill({ ...baseEntry, status: "planned", actual_amount: null, paid_date: null }, "2026-10-06")).toEqual({ amount: 1000, date: "2026-10-06" });
+    expect(realizationPrefill({ ...baseEntry, status: "planned", actual_amount: 950, paid_date: "2026-09-28" }, "2026-10-06")).toEqual({ amount: 950, date: "2026-09-28" });
+  });
+
+  it("gera payload de confirmacao com valor e data informados", () => {
+    const result = buildRealizationPatch(
+      { ...baseEntry, status: "planned", actual_amount: null, paid_date: null },
+      { amount: "99,90", date: "2026-10-04" },
+    );
+    expect(result.error).toBeNull();
+    expect(result.patch).toEqual({ status: "paid", actual_amount: 99.9, paid_date: "2026-10-04" });
+  });
+
+  it("valida valor, data e status no payload de confirmacao", () => {
+    const planned = { ...baseEntry, status: "planned" as const, actual_amount: null, paid_date: null };
+    expect(buildRealizationPatch(planned, { amount: "0", date: "2026-10-04" }).error).toMatch(/valor/i);
+    expect(buildRealizationPatch(planned, { amount: "abc", date: "2026-10-04" }).error).toMatch(/valor/i);
+    expect(buildRealizationPatch(planned, { amount: "10", date: "2026-02-30" }).error).toMatch(/data/i);
+    expect(buildRealizationPatch(planned, { amount: "10", date: "" }).error).toMatch(/data/i);
+    expect(buildRealizationPatch({ ...baseEntry, status: "paid", actual_amount: 950, paid_date: "2026-09-28" }, { amount: "10", date: "2026-10-04" }).error).toMatch(/já está realizado/i);
   });
 
   it("aplica recorrencia respeitando inicio, fim e ativo", () => {

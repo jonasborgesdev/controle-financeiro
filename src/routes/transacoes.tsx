@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { filterEntriesByAccount, useAccountScope } from "@/lib/account-scope";
@@ -12,8 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { compactEntryDateLabel, entryActualSignedAmount, entryDisplayAmount, entryEffectiveDate, entryStatusPatch, formatCurrency, groupEntriesByEffectiveDate, isFinanceClassification, monthLabel, parseMonthKey, summarizeEntries } from "@/lib/finance";
-import { DESCRIPTION_MAX_LENGTH, NOTES_MAX_LENGTH, isValidDateString, parseMoneyAmount, sanitizeText } from "@/lib/security";
+import { buildRealizationPatch, buildStickySummary, compactEntryDateLabel, countEntriesByStatus, entryActualSignedAmount, entryDisplayAmount, entryEffectiveDate, formatCurrency, groupEntriesByEffectiveDate, isFinanceClassification, monthLabel, parseMonthKey, realizationPrefill, summarizeEntries } from "@/lib/finance";
+import { parseQuickAddParam, quickAddEntryType } from "@/lib/quick-add";
+import { DESCRIPTION_MAX_LENGTH, NOTES_MAX_LENGTH, isValidDateString, parseMoneyAmount, releaseActionLock, sanitizeText, tryAcquireActionLock } from "@/lib/security";
 import { createClient } from "@/lib/supabase/client";
 import type { Account, Category, FinancialEntry, Financing, MonthlyBalance } from "@/types/database";
 
@@ -51,12 +52,25 @@ const statusLabel = {
   paid: "Realizado",
 } satisfies Record<EntryForm["status"], string>;
 
+// Semana 10.4: estado do modal de confirmação de realização (checkbox).
+type ConfirmRealizationState = {
+  entry: FinancialEntry;
+  mode: "realize" | "revert";
+  amount: string;
+  date: string;
+  error: string | null;
+};
+
 const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,transfer_group_id,financing_id,installment_year,installment_month,notes,created_at,updated_at";
 const balanceColumns = "id,user_id,year,month,label,created_at,updated_at";
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
 
 export const Route = createFileRoute("/transacoes")({
+  // Semana 10.4: ?novo=gasto|ganho vem do QuickAddSheet global.
+  validateSearch: (search: Record<string, unknown>): { novo?: string | undefined } => ({
+    novo: typeof search["novo"] === "string" ? search["novo"] : undefined,
+  }),
   beforeLoad: async () => {
     const supabase = createClient();
     const { data } = await supabase.auth.getSession();
@@ -68,6 +82,8 @@ export const Route = createFileRoute("/transacoes")({
 
 function EntriesPage() {
   const { user } = Route.useRouteContext();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -83,6 +99,7 @@ function EntriesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const [confirmRealization, setConfirmRealization] = useState<ConfirmRealizationState | null>(null);
 
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
@@ -97,6 +114,9 @@ function EntriesPage() {
       .filter((entry) => entry.account_id === account.id && entry.status === "paid" && entryEffectiveDate(entry) < monthStart)
       .reduce((balance, entry) => balance + entryActualSignedAmount(entry), Number(account.initial_balance ?? 0));
   }, 0);
+  // Semana 10.4: mesma fonte dos cards para a barra sticky (sem query nova).
+  const stickySummary = buildStickySummary(summary, balanceBeforeMonth);
+  const entryCounts = countEntriesByStatus(filteredEntries);
   const groupedEntries = groupEntriesByEffectiveDate(filteredEntries);
   const editingEntry = editingId ? entries.find((entry) => entry.id === editingId) ?? null : null;
   const isEditingTransfer = editingEntry != null && (editingEntry.source === "transfer" || Boolean(editingEntry.transfer_group_id));
@@ -168,7 +188,7 @@ function EntriesPage() {
     return data as MonthlyBalance;
   };
 
-  const openNewEntry = (entryType?: "income" | "expense") => {
+  const openNewEntry = useCallback((entryType?: "income" | "expense") => {
     setEditingId(null);
     const defaultAccountId = selectedAccountId === "all" ? "" : selectedAccountId;
     setForm({
@@ -178,7 +198,17 @@ function EntriesPage() {
       due_date: `${selectedMonth}-${String(new Date().getDate()).padStart(2, "0")}`,
     });
     setModalOpen(true);
-  };
+  }, [selectedAccountId, selectedMonth]);
+
+  // Semana 10.4: consome ?novo=gasto|ganho do QuickAddSheet uma única vez e
+  // remove o parâmetro da URL (replace) para não reabrir no voltar/recarregar.
+  useEffect(() => {
+    const kind = parseQuickAddParam(search.novo);
+    if (kind === null) return;
+    const entryType = quickAddEntryType(kind);
+    if (entryType) openNewEntry(entryType);
+    void navigate({ search: (previous) => ({ ...previous, novo: undefined }), replace: true });
+  }, [navigate, openNewEntry, search.novo]);
 
   const openEdit = (entry: FinancialEntry) => {
     setOpenActionMenuId(null);
@@ -276,38 +306,92 @@ function EntriesPage() {
     await loadData();
   };
 
-  const toggleStatus = async (entry: FinancialEntry) => {
-    setOpenActionMenuId(null);
+  // Semana 10.4: o checkbox não grava mais direto. Marcar (previsto→realizado)
+  // abre o modal "Confirmar realização"; desmarcar abre confirmação simples.
+  const requestStatusToggle = (entry: FinancialEntry) => {
+    if (entry.status === "planned") {
+      const prefill = realizationPrefill(entry, today);
+      setConfirmRealization({
+        entry,
+        mode: "realize",
+        amount: String(prefill.amount),
+        date: prefill.date,
+        error: null,
+      });
+      return;
+    }
+    setConfirmRealization({ entry, mode: "revert", amount: "", date: "", error: null });
+  };
+
+  const applyStatusPatch = async (
+    entry: FinancialEntry,
+    patch: { status: "paid" | "planned"; actual_amount?: number; paid_date?: string },
+    options?: { inModal?: boolean },
+  ) => {
     setSaving(true);
     setError(null);
-    const statusPatch = entryStatusPatch(entry, today);
-    const effectiveDate = statusPatch.status === "paid" ? statusPatch.paid_date : entry.due_date;
-    const monthlyBalance = await ensureMonthlyBalance(effectiveDate);
-    const payload = { ...statusPatch, monthly_balance_id: monthlyBalance.id };
-    // Semana 10.2: checkbox previsto/realizado propaga para o par.
-    const statusTargets = entry.transfer_group_id
-      ? entries.filter((item) => item.transfer_group_id === entry.transfer_group_id).map((item) => item.id)
-      : [entry.id];
-    const { error: updateError } = await supabase.from("financial_entries").update(payload).in("id", statusTargets.length > 0 ? statusTargets : [entry.id]);
-    if (updateError) setError(updateError.message);
-    if (!updateError && entry.financing_id) {
-      const { data: financing } = await supabase
-        .from("financings")
-        .select("id,user_id,account_id,category_id,name,original_amount,installment_amount,total_installments,paid_installments,due_day,start_date,status,notes,created_at,updated_at")
-        .eq("id", entry.financing_id)
-        .single();
-      if (financing) {
-        const current = financing as Financing;
-        const paidInstallments = statusPatch.status === "paid"
-          ? Math.min(current.total_installments, current.paid_installments + 1)
-          : Math.max(0, current.paid_installments - 1);
-        const status = paidInstallments >= current.total_installments ? "finished" : current.status === "finished" ? "active" : current.status;
-        const { error: financingError } = await supabase.from("financings").update({ paid_installments: paidInstallments, status }).eq("id", current.id);
-        if (financingError) setError(financingError.message);
-      }
+    const lockKey = `entry-status:${user.id}:${entry.id}`;
+    if (!tryAcquireActionLock(lockKey, 3000)) {
+      const message = "Esse lançamento acabou de ser atualizado. Aguarde um instante e tente de novo.";
+      if (options?.inModal) setConfirmRealization((current) => (current ? { ...current, error: message } : current));
+      else setError(message);
+      setSaving(false);
+      return;
     }
-    await loadData();
-    setSaving(false);
+    try {
+      const effectiveDate = patch.status === "paid" ? patch.paid_date ?? today : entry.due_date;
+      const monthlyBalance = await ensureMonthlyBalance(effectiveDate);
+      const payload = { ...patch, monthly_balance_id: monthlyBalance.id };
+      // Semana 10.2: checkbox previsto/realizado propaga para o par de transferência.
+      const statusTargets = entry.transfer_group_id
+        ? entries.filter((item) => item.transfer_group_id === entry.transfer_group_id).map((item) => item.id)
+        : [entry.id];
+      const { error: updateError } = await supabase.from("financial_entries").update(payload).in("id", statusTargets.length > 0 ? statusTargets : [entry.id]);
+      if (updateError) throw updateError;
+      // Financiamento: paid_installments continua sendo ajustado como antes.
+      if (entry.financing_id) {
+        const { data: financing } = await supabase
+          .from("financings")
+          .select("id,user_id,account_id,category_id,name,original_amount,installment_amount,total_installments,paid_installments,due_day,start_date,status,notes,created_at,updated_at")
+          .eq("id", entry.financing_id)
+          .single();
+        if (financing) {
+          const current = financing as Financing;
+          const paidInstallments = patch.status === "paid"
+            ? Math.min(current.total_installments, current.paid_installments + 1)
+            : Math.max(0, current.paid_installments - 1);
+          const financingStatus = paidInstallments >= current.total_installments ? "finished" : current.status === "finished" ? "active" : current.status;
+          const { error: financingError } = await supabase.from("financings").update({ paid_installments: paidInstallments, status: financingStatus }).eq("id", current.id);
+          if (financingError) throw financingError;
+        }
+      }
+      await loadData();
+      setConfirmRealization(null);
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : "Erro ao atualizar o lançamento.";
+      if (options?.inModal) setConfirmRealization((current) => (current ? { ...current, error: message } : current));
+      else setError(message);
+    } finally {
+      releaseActionLock(lockKey);
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmRealization = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!confirmRealization || confirmRealization.mode !== "realize") return;
+    const result = buildRealizationPatch(confirmRealization.entry, { amount: confirmRealization.amount, date: confirmRealization.date });
+    if (result.error || !result.patch) {
+      setConfirmRealization((current) => (current ? { ...current, error: result.error ?? "Não foi possível confirmar a realização." } : current));
+      return;
+    }
+    await applyStatusPatch(confirmRealization.entry, result.patch, { inModal: true });
+  };
+
+  const handleConfirmRevert = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!confirmRealization) return;
+    await applyStatusPatch(confirmRealization.entry, { status: "planned" }, { inModal: true });
   };
 
   return (
@@ -323,7 +407,15 @@ function EntriesPage() {
           </div>
         </PageHero>
 
-        <SummaryCharts summary={summary} balanceBeforeMonth={balanceBeforeMonth} />
+        <SummaryCharts summary={summary} sticky={stickySummary} balanceBeforeMonth={balanceBeforeMonth} />
+
+        <StickySummaryBar
+          month={monthLabel(parseMonthKey(selectedMonth).year, parseMonthKey(selectedMonth).month)}
+          actualBalance={stickySummary.actualBalance}
+          expectedBalance={stickySummary.expectedBalance}
+          paidCount={entryCounts.paid}
+          plannedCount={entryCounts.planned}
+        />
 
         <Card className="overflow-visible">
           <CardHeader>
@@ -344,7 +436,7 @@ function EntriesPage() {
                   saving={saving}
                   openActionMenuId={openActionMenuId}
                   onToggleActionMenu={(entryId) => setOpenActionMenuId((current) => current === entryId ? null : entryId)}
-                  onToggleStatus={toggleStatus}
+                  onToggleStatus={requestStatusToggle}
                   onEdit={openEdit}
                   onDelete={deleteEntry}
                 />
@@ -423,14 +515,119 @@ function EntriesPage() {
           <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar lançamento"}</Button>
         </form>
       </Modal>
+
+      {/* Semana 10.4: confirmação de realização com valor/data editáveis. */}
+      {confirmRealization ? (
+        <Modal
+          title={confirmRealization.mode === "realize" ? "Confirmar realização" : "Voltar para previsto"}
+          description={confirmRealization.mode === "realize"
+            ? "Confira o valor real e a data em que o lançamento aconteceu antes de confirmar."
+            : "O valor real e a data de pagamento continuam salvos; apenas o status volta para previsto."}
+          open
+          onClose={() => setConfirmRealization(null)}
+        >
+          {confirmRealization.mode === "realize" ? (
+            <form className="grid gap-4" onSubmit={handleConfirmRealization}>
+              <p className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm text-slate-200">
+                <span className="font-semibold text-white">{confirmRealization.entry.description}</span>
+                <span className="mt-1 block text-xs text-slate-400">Previsto: {formatCurrency(Number(confirmRealization.entry.expected_amount))}</span>
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-amount">Valor real</Label>
+                <Input
+                  id="confirm-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={confirmRealization.amount}
+                  onChange={(event) => setConfirmRealization((current) => (current ? { ...current, amount: event.target.value, error: null } : current))}
+                  required
+                />
+              </div>
+              <DatePicker
+                id="confirm-paid-date"
+                label="Data realizada"
+                value={confirmRealization.date}
+                onChange={(value) => setConfirmRealization((current) => (current ? { ...current, date: value, error: null } : current))}
+                required
+              />
+              {confirmRealization.error ? (
+                <p role="alert" className="rounded-xl border border-rose-300/20 bg-rose-400/[0.10] p-3 text-sm text-rose-100">{confirmRealization.error}</p>
+              ) : null}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button type="button" variant="outline" onClick={() => setConfirmRealization(null)} disabled={saving}>Cancelar</Button>
+                <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Confirmar"}</Button>
+              </div>
+            </form>
+          ) : (
+            <form className="grid gap-4" onSubmit={handleConfirmRevert}>
+              <p className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm text-slate-200">
+                Voltar <span className="font-semibold text-white">{confirmRealization.entry.description}</span> para previsto?
+              </p>
+              {confirmRealization.error ? (
+                <p role="alert" className="rounded-xl border border-rose-300/20 bg-rose-400/[0.10] p-3 text-sm text-rose-100">{confirmRealization.error}</p>
+              ) : null}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button type="button" variant="outline" onClick={() => setConfirmRealization(null)} disabled={saving}>Cancelar</Button>
+                <Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Voltar para previsto"}</Button>
+              </div>
+            </form>
+          )}
+        </Modal>
+      ) : null}
     </AppShell>
   );
 }
 
-function SummaryCharts({ summary, balanceBeforeMonth }: { summary: ReturnType<typeof summarizeEntries>; balanceBeforeMonth?: number }) {
+function StickySummaryBar({ month, actualBalance, expectedBalance, paidCount, plannedCount }: {
+  month: string;
+  actualBalance: number;
+  expectedBalance: number;
+  paidCount: number;
+  plannedCount: number;
+}) {
+  return (
+    <div
+      className="finance-glass sticky z-20 rounded-2xl px-3 py-2.5 shadow-lg shadow-slate-950/20"
+      style={{ top: "var(--app-header-height, 0px)" }}
+      data-testid="sticky-summary-bar"
+      aria-label="Resumo do mês"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-cyan-200">{month}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+          <span className="text-slate-400">
+            Realizado{" "}
+            <strong className="text-sm font-black tracking-[-0.03em] text-emerald-200" data-testid="sticky-actual-balance">
+              {formatCurrency(actualBalance)}
+            </strong>
+          </span>
+          <span className="text-slate-400">
+            Previsto{" "}
+            <strong className="text-sm font-black tracking-[-0.03em] text-[#f5c76b]" data-testid="sticky-expected-balance">
+              {formatCurrency(expectedBalance)}
+            </strong>
+          </span>
+        </div>
+      </div>
+      <p className="mt-0.5 text-[0.68rem] text-slate-400">
+        <span data-testid="sticky-paid-count">{paidCount}</span> {paidCount === 1 ? "realizado" : "realizados"}
+        {" · "}
+        <span data-testid="sticky-planned-count">{plannedCount}</span> {plannedCount === 1 ? "previsto" : "previstos"}
+      </p>
+    </div>
+  );
+}
+
+function SummaryCharts({ summary, sticky, balanceBeforeMonth }: {
+  summary: ReturnType<typeof summarizeEntries>;
+  sticky: ReturnType<typeof buildStickySummary>;
+  balanceBeforeMonth?: number;
+}) {
   const base = balanceBeforeMonth ?? 0;
-  const expectedBalance = base + summary.expectedBalance;
-  const actualBalance = base + summary.actualBalance;
+  const expectedBalance = sticky.expectedBalance;
+  const actualBalance = sticky.actualBalance;
   const balanceTone = actualBalance < 0 || expectedBalance < 0 ? "danger" : "income";
 
   return (
@@ -474,7 +671,7 @@ function SummaryBarCard({ title, plannedLabel, actualLabel, planned, actual, ton
   const actualWidth = planned > 0 ? Math.min(100, Math.max((actual / planned) * 100, actual > 0 ? 8 : 0)) : actual > 0 ? 100 : 0;
 
   return (
-    <div className={`rounded-2xl border p-4 shadow-lg shadow-slate-950/15 ${palette.card}`}>
+    <div className={`rounded-2xl border p-4 shadow-lg shadow-slate-950/15 ${palette.card}`} data-testid="summary-card" data-summary-title={title}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className={`text-sm font-semibold ${palette.muted}`}>{title}</p>

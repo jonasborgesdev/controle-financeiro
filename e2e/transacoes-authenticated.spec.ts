@@ -28,10 +28,18 @@ test.describe("lista compacta de lançamentos", () => {
     await expect(row).toBeVisible();
     await expect(row.getByText("Previsto", { exact: true })).toBeVisible();
 
+    // Semana 10.4: marcar abre o modal de confirmação (não grava direto).
     await page.getByLabel(`Marcar ${seed.plannedDescription} como realizado`).click();
+    const confirmDialog = page.getByRole("dialog", { name: "Confirmar realização" });
+    await expect(confirmDialog).toBeVisible();
+    await confirmDialog.getByRole("button", { name: "Confirmar" }).click();
     await expect(row.getByText("Realizado", { exact: true })).toBeVisible();
 
+    // Semana 10.4: desmarcar pede confirmação simples.
     await page.getByLabel(`Voltar ${seed.plannedDescription} para previsto`).click();
+    const revertDialog = page.getByRole("dialog", { name: "Voltar para previsto" });
+    await expect(revertDialog).toBeVisible();
+    await revertDialog.getByRole("button", { name: "Voltar para previsto" }).click();
     await expect(row.getByText("Previsto", { exact: true })).toBeVisible();
 
     await row.getByLabel(`Ações do lançamento ${seed.plannedDescription}`).click();

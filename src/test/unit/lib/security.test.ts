@@ -5,6 +5,7 @@ import {
   isValidDateString,
   isValidPeriodRange,
   parseMoneyAmount,
+  releaseActionLock,
   sanitizeText,
   tryAcquireActionLock,
   validateUploadFile,
@@ -62,6 +63,15 @@ describe("security helpers", () => {
     expect(tryAcquireActionLock("asaas:user-1:2026-10", 60000, 2000)).toBe(false);
     expect(tryAcquireActionLock("asaas:user-1:2026-10", 60000, 70000)).toBe(true);
     expect(tryAcquireActionLock("ia:user-1:monthly", 60000, 2000)).toBe(true);
+    clearActionLocks();
+  });
+
+  it("releaseActionLock libera a chave para nova acao legitima", () => {
+    clearActionLocks();
+    expect(tryAcquireActionLock("entry-status:user-1:entry-1", 60000, 1000)).toBe(true);
+    expect(tryAcquireActionLock("entry-status:user-1:entry-1", 60000, 2000)).toBe(false);
+    releaseActionLock("entry-status:user-1:entry-1");
+    expect(tryAcquireActionLock("entry-status:user-1:entry-1", 60000, 2000)).toBe(true);
     clearActionLocks();
   });
 });

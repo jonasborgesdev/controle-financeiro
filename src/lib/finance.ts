@@ -1,4 +1,5 @@
 import { isInternalTransfer, transferCategoryIds } from "@/lib/transfers";
+import { isValidDateString, parseMoneyAmount } from "@/lib/security";
 import type { Account, Budget, Category, FinancialEntry, MonthlyBalance, RecurringRule, RecurringTransaction, SavingsGoal, Transaction } from "@/types/database";
 
 export const defaultExpenseClassifications = new Set(["Gastos fixos", "Gastos variáveis"]);
@@ -228,6 +229,46 @@ export function entryStatusPatch(entry: Pick<FinancialEntry, "status" | "expecte
     actual_amount: entry.actual_amount ?? Number(entry.expected_amount),
     paid_date: entry.paid_date ?? todayValue,
   };
+}
+
+// Semana 10.4: resumo sticky e confirmação de realização.
+// Ambos reaproveitam o mesmo `summary` dos cards, sem query nova.
+
+export function buildStickySummary(summary: ReturnType<typeof summarizeEntries>, balanceBeforeMonth = 0) {
+  return {
+    expectedBalance: balanceBeforeMonth + summary.expectedBalance,
+    actualBalance: balanceBeforeMonth + summary.actualBalance,
+  };
+}
+
+export function countEntriesByStatus(entries: Pick<FinancialEntry, "status">[]) {
+  let paid = 0;
+  let planned = 0;
+  for (const entry of entries) {
+    if (entry.status === "paid") paid += 1;
+    else planned += 1;
+  }
+  return { paid, planned };
+}
+
+export function realizationPrefill(entry: Pick<FinancialEntry, "status" | "expected_amount" | "actual_amount" | "paid_date">, todayValue = new Date().toISOString().slice(0, 10)) {
+  return {
+    amount: entry.actual_amount ?? Number(entry.expected_amount),
+    date: entry.paid_date ?? todayValue,
+  };
+}
+
+export type RealizationPatch = { status: "paid"; actual_amount: number; paid_date: string };
+
+export function buildRealizationPatch(
+  entry: Pick<FinancialEntry, "status" | "expected_amount" | "actual_amount" | "paid_date">,
+  input: { amount: string | number; date: string },
+): { patch: RealizationPatch; error: null } | { patch: null; error: string } {
+  if (entry.status === "paid") return { patch: null, error: "Este lançamento já está realizado." };
+  const actualAmount = parseMoneyAmount(input.amount);
+  if (actualAmount === null) return { patch: null, error: "Informe um valor real válido maior que zero." };
+  if (!isValidDateString(input.date)) return { patch: null, error: "Informe uma data de realização válida." };
+  return { patch: { status: "paid", actual_amount: actualAmount, paid_date: input.date }, error: null };
 }
 
 export function recurringRuleAppliesToMonth(rule: RecurringRule, year: number, month: number) {
