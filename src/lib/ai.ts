@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { buildAnnualReport, buildMonthlyReport } from "@/lib/reports";
 import { formatCurrency, monthBounds } from "@/lib/finance";
+import { splitEntries, summarizeInternalMovements } from "@/lib/transfers";
 import { isValidPeriodRange, tryAcquireActionLock } from "@/lib/security";
 import type { Account, AiAnalysis, Category, FinancialEntry, Financing, IntegrationSetting, Json, SavingsGoal } from "@/types/database";
 
@@ -57,11 +58,12 @@ export interface AiInputSummary {
   savingsGoal: { name: string; monthlyTarget: number; currentAmount: number; reachedInPeriod: boolean | null } | null;
   financings: { activeCount: number; monthlyCommitment: number; remainingEstimated: number };
   monthlyTrend: Array<{ month: string; income: number; expenses: number; balance: number }>;
+  internalTransfers: { count: number; expectedTotal: number; actualTotal: number };
   alerts: string[];
   privacy: { rawDescriptionsSent: false; accountNamesSanitized: true; onlyAggregatedData: false; limitedSanitizedEntryCandidates: true };
 }
 
-const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,financing_id,installment_year,installment_month,notes,created_at,updated_at";
+const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,transfer_group_id,financing_id,installment_year,installment_month,notes,created_at,updated_at";
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
 const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
@@ -84,11 +86,22 @@ export function getAiFallbackProviderConfig(primaryProvider: AiProvider) {
   return { provider, model, configured: Boolean(apiKey), apiKey: apiKey ?? null };
 }
 
-export function buildAiInputSummary(input: { analysisType: AiAnalysisType; periodStart: string; periodEnd: string; entries: FinancialEntry[]; trendEntries?: FinancialEntry[]; accounts: Account[]; categories: Category[]; goals: SavingsGoal[]; financings: Financing[] }) : AiInputSummary {
+export function buildAiInputSummary(input: { analysisType: AiAnalysisType; periodStart: string; periodEnd: string; entries: FinancialEntry[]; trendEntries?: FinancialEntry[]; accounts: Account[]; categories: Category[]; goals: SavingsGoal[]; financings: Financing[]; accountId?: string | undefined }) : AiInputSummary {
+  // Semana 10.2: transferências saem dos totais/candidatos/tendência e viram
+  // movimentação interna citada à parte (nunca receita nova nem corte).
+  const selectedAccountId = input.accountId ?? "all";
+  const scopedAccounts = selectedAccountId === "all" ? input.accounts : input.accounts.filter((account) => account.id === selectedAccountId);
+  const scopedEntries = selectedAccountId === "all" ? input.entries : input.entries.filter((entry) => entry.account_id === selectedAccountId);
+  const scopedTrendEntries = selectedAccountId === "all" ? (input.trendEntries ?? input.entries) : (input.trendEntries ?? input.entries).filter((entry) => entry.account_id === selectedAccountId);
+  const scopedFinancings = selectedAccountId === "all" ? input.financings : input.financings.filter((financing) => financing.account_id === selectedAccountId);
+  const { real: realEntries, internal: internalEntries } = splitEntries(scopedEntries, input.categories);
+  const { real: realTrendEntries } = splitEntries(scopedTrendEntries, input.categories);
+  const internalTotals = summarizeInternalMovements(internalEntries);
+  const entries = realEntries;
   const periodLabel = input.periodStart.slice(0, 7) === input.periodEnd.slice(0, 7) ? input.periodStart.slice(0, 7) : `${input.periodStart} a ${input.periodEnd}`;
   const year = Number(input.periodStart.slice(0, 4));
-  const monthly = buildMonthlyReport(input.entries, input.accounts, input.categories, input.goals);
-  const annual = buildAnnualReport(input.entries, input.accounts, input.categories, input.goals, year);
+  const monthly = buildMonthlyReport(entries, scopedAccounts, input.categories, input.goals);
+  const annual = buildAnnualReport(entries, scopedAccounts, input.categories, input.goals, year);
   const report = input.analysisType === "annual" || input.analysisType === "planning" ? annual : monthly;
   const summary = report.summary;
   const byCategory = report.byCategory
@@ -117,15 +130,15 @@ export function buildAiInputSummary(input: { analysisType: AiAnalysisType; perio
   const activeFinancings = input.financings.filter((financing) => financing.status === "active");
   const monthlyCommitment = activeFinancings.reduce((total, financing) => total + Number(financing.installment_amount), 0);
   const remainingEstimated = activeFinancings.reduce((total, financing) => total + Math.max(0, financing.total_installments - financing.paid_installments) * Number(financing.installment_amount), 0);
-  const trend = monthlyTrend(input.trendEntries ?? input.entries);
+  const trend = monthlyTrend(realTrendEntries);
   const alerts = buildAggregatedAlerts(summary, byCategory, monthlyTarget, monthlyCommitment);
-  const adjustableEntries = buildAdjustableEntries(input.entries, input.accounts, input.categories, categoriesOverPlanned.map((category) => category.name));
+  const adjustableEntries = buildAdjustableEntries(entries, scopedAccounts, input.categories, categoriesOverPlanned.map((category) => category.name));
   const counts = {
-    entries: input.entries.length,
-    paidEntries: input.entries.filter((entry) => entry.status === "paid").length,
-    plannedEntries: input.entries.filter((entry) => entry.status === "planned").length,
-    expenseEntries: input.entries.filter((entry) => entry.entry_type === "expense").length,
-    incomeEntries: input.entries.filter((entry) => entry.entry_type === "income").length,
+    entries: entries.length,
+    paidEntries: entries.filter((entry) => entry.status === "paid").length,
+    plannedEntries: entries.filter((entry) => entry.status === "planned").length,
+    expenseEntries: entries.filter((entry) => entry.entry_type === "expense").length,
+    incomeEntries: entries.filter((entry) => entry.entry_type === "income").length,
   };
   const fingerprint = analysisFingerprint({
     type: input.analysisType,
@@ -173,6 +186,11 @@ export function buildAiInputSummary(input: { analysisType: AiAnalysisType; perio
       remainingEstimated: roundMoney(remainingEstimated),
     },
     monthlyTrend: trend,
+    internalTransfers: {
+      count: internalEntries.length,
+      expectedTotal: roundMoney(internalTotals.expectedTotal),
+      actualTotal: roundMoney(internalTotals.actualTotal),
+    },
     alerts,
     privacy: { rawDescriptionsSent: false, accountNamesSanitized: true, onlyAggregatedData: false, limitedSanitizedEntryCandidates: true },
   };
@@ -213,6 +231,7 @@ Regras obrigatorias:
 - Em onde_cortar_gastos, nao sugira cortes irrelevantes perto do deficit. Se o deficit for alto, priorize categorias/lancamentos de maior impacto e diga quando um corte pequeno e insuficiente.
 - Quando os maiores lancamentos forem importados ou possivelmente transferencias/classificacoes genericas, recomende revisar classificacao antes de tratar como corte definitivo.
 - Quando adjustableEntries indicar possivel duplicidade ou possivel transferencia interna, recomende conferir antes de tratar como gasto cortavel.
+- O campo internalTransfers informa movimentacoes internas entre contas do casal (ex: PJ para conta conjunta). Elas NAO sao receita nova nem gasto cortavel: cite apenas como movimentacao interna, sem sugerir corte.
 
 Formato JSON esperado:
 {
@@ -345,7 +364,7 @@ export const listAiAnalyses = createServerFn({ method: "POST" })
   });
 
 export const generateAiAnalysis = createServerFn({ method: "POST" })
-  .validator((data: unknown) => data as { accessToken: string; analysisType: AiAnalysisType; periodStart: string; periodEnd: string; force?: boolean })
+  .validator((data: unknown) => data as { accessToken: string; analysisType: AiAnalysisType; periodStart: string; periodEnd: string; force?: boolean; accountId?: string })
   .handler(async ({ data }) => {
     const userId = await requireAuthenticatedUser(data.accessToken);
     if (data.analysisType !== "monthly" && data.analysisType !== "annual" && data.analysisType !== "savings" && data.analysisType !== "planning") {
@@ -363,7 +382,7 @@ export const generateAiAnalysis = createServerFn({ method: "POST" })
     const settings = await loadAiSettings(supabase, userId);
     if (!settings?.enabled) throw new Error("IA desativada. Ative em Configurações antes de gerar análises.");
 
-    const summary = await loadAndSummarize(supabase, userId, data.analysisType, data.periodStart, data.periodEnd);
+    const summary = await loadAndSummarize(supabase, userId, data.analysisType, data.periodStart, data.periodEnd, data.accountId);
     if (summary.totals.expectedIncome === 0 && summary.totals.expectedExpenses === 0 && summary.totals.actualIncome === 0 && summary.totals.actualExpenses === 0) {
       throw new Error("Dados insuficientes para análise. Cadastre lançamentos previstos ou realizados no período.");
     }
@@ -395,7 +414,7 @@ export const generateAiAnalysis = createServerFn({ method: "POST" })
     return { analysis: saved as AiAnalysis, cached: false, parsed: validateAiResponse(parseAiResponse(aiResult.text), summary) };
   });
 
-async function loadAndSummarize(supabase: ReturnType<typeof createServerSupabase>, userId: string, analysisType: AiAnalysisType, periodStart: string, periodEnd: string) {
+async function loadAndSummarize(supabase: ReturnType<typeof createServerSupabase>, userId: string, analysisType: AiAnalysisType, periodStart: string, periodEnd: string, accountId?: string) {
   const trendStart = shiftDateMonth(periodStart, -5);
   const [entriesResult, trendEntriesResult, accountsResult, categoriesResult, goalsResult, financingsResult] = await Promise.all([
     supabase.from("financial_entries").select(entryColumns).eq("user_id", userId).gte("due_date", periodStart).lte("due_date", periodEnd).order("due_date"),
@@ -419,6 +438,7 @@ async function loadAndSummarize(supabase: ReturnType<typeof createServerSupabase
     categories: categoriesResult.data as Category[] ?? [],
     goals: goalsResult.data as SavingsGoal[] ?? [],
     financings: financingsResult.error ? [] : financingsResult.data as Financing[] ?? [],
+    accountId,
   });
 }
 
@@ -535,6 +555,7 @@ function monthlyTrend(entries: FinancialEntry[]) {
   const months = new Map<string, { month: string; income: number; expenses: number; balance: number }>();
   for (const entry of entries) {
     if (entry.status !== "paid") continue;
+    if (entry.source === "transfer" || entry.transfer_group_id) continue;
     const key = entry.due_date.slice(0, 7);
     const row = months.get(key) ?? { month: key, income: 0, expenses: 0, balance: 0 };
     const value = Number(entry.actual_amount ?? entry.expected_amount);
@@ -592,7 +613,7 @@ function buildAdjustableEntries(entries: FinancialEntry[], accounts: Account[], 
   const paidEntries = entries.filter((entry) => entry.status === "paid");
 
   return entries
-    .filter((entry) => entry.entry_type === "expense")
+    .filter((entry) => entry.entry_type === "expense" && entry.source !== "transfer" && !entry.transfer_group_id)
     .map((entry) => {
       const amount = roundMoney(Number(entry.status === "paid" ? entry.actual_amount ?? entry.expected_amount : entry.expected_amount));
       const category = entry.category_id ? categoryById.get(entry.category_id) ?? "Sem classificacao" : "Sem classificacao";
@@ -726,6 +747,7 @@ function minimalSummary(): AiInputSummary {
     savingsGoal: { name: "Meta minima", monthlyTarget: 50, currentAmount: 0, reachedInPeriod: true },
     financings: { activeCount: 0, monthlyCommitment: 0, remainingEstimated: 0 },
     monthlyTrend: [{ month: bounds.startDate.slice(0, 7), income: 100, expenses: 45, balance: 55 }],
+    internalTransfers: { count: 0, expectedTotal: 0, actualTotal: 0 },
     alerts: [],
     privacy: { rawDescriptionsSent: false, accountNamesSanitized: true, onlyAggregatedData: false, limitedSanitizedEntryCandidates: true },
   };

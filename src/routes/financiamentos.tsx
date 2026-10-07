@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { useAccountScope } from "@/lib/account-scope";
 import { dueDateForMonth, formatCurrency, isFinanceClassification, monthLabel, parseMonthKey } from "@/lib/finance";
 import { NAME_MAX_LENGTH, NOTES_MAX_LENGTH, parseMoneyAmount, sanitizeText } from "@/lib/security";
 import { financingNextDueDate, financingProgressPercent, financingRemainingAmount, financingRemainingInstallments, hasFinancingInstallmentForMonth, monthlyFinancingCommitment } from "@/lib/financings";
@@ -70,6 +71,7 @@ export const Route = createFileRoute("/financiamentos")({
 
 function FinancingsPage() {
   const { user } = Route.useRouteContext();
+  const { accountId: selectedAccountId } = useAccountScope();
   const supabase = createClient();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [financings, setFinancings] = useState<Financing[]>([]);
@@ -86,8 +88,9 @@ function FinancingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const { year, month } = parseMonthKey(selectedMonth);
-  const activeFinancings = financings.filter((financing) => financing.status === "active");
-  const totalCommitment = monthlyFinancingCommitment(financings);
+  const filteredFinancings = selectedAccountId === "all" ? financings : financings.filter((financing) => financing.account_id === selectedAccountId);
+  const activeFinancings = filteredFinancings.filter((financing) => financing.status === "active");
+  const totalCommitment = monthlyFinancingCommitment(filteredFinancings);
   const expenseCategories = categories.filter((category) => category.type === "expense" && isFinanceClassification(category, user.id));
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account.name])), [accounts]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories]);
@@ -301,11 +304,11 @@ function FinancingsPage() {
           <>
             <div className="grid gap-4 sm:grid-cols-3">
               <MetricCard title="Comprometido/mês" value={formatCurrency(totalCommitment)} helper="Soma dos financiamentos ativos" tone="rose" />
-              <MetricCard title="Ativos" value={String(activeFinancings.length)} helper={`${financings.length} contrato(s) cadastrados`} tone="cyan" />
+              <MetricCard title="Ativos" value={String(activeFinancings.length)} helper={`${filteredFinancings.length} contrato(s) cadastrados`} tone="cyan" />
               <MetricCard title="Restante estimado" value={formatCurrency(activeFinancings.reduce((total, financing) => total + financingRemainingAmount(financing), 0))} helper="Parcelas restantes x valor da parcela" tone="gold" />
             </div>
 
-            {financings.length === 0 ? (
+            {filteredFinancings.length === 0 ? (
               <Card>
                 <CardContent className="py-10 text-center">
                   <p className="text-lg font-bold text-slate-50">Você ainda não cadastrou financiamentos.</p>
@@ -315,7 +318,7 @@ function FinancingsPage() {
               </Card>
             ) : (
               <div className="grid gap-5 lg:grid-cols-2">
-                {financings.map((financing) => {
+                {filteredFinancings.map((financing) => {
                   const progress = financingProgressPercent(financing);
                   const remaining = financingRemainingInstallments(financing);
                   const installmentGenerated = hasFinancingInstallmentForMonth(entries, financing.id, year, month);

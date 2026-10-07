@@ -188,7 +188,7 @@ export const syncAsaasPayments = createServerFn({ method: "POST" })
     const normalized = payments.map((payment) => normalizeAsaasPayment(payment, customerNames)).filter((item): item is NonNullable<typeof item> => Boolean(item));
     const { data: existingEntries, error: entriesError } = await supabase
       .from("financial_entries")
-      .select("id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at")
+      .select("id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,transfer_group_id,notes,created_at,updated_at")
       .eq("user_id", userId)
       .eq("account_id", integration.default_account_id);
     if (entriesError) throw new Error(entriesError.message);

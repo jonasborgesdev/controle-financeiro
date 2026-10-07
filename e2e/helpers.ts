@@ -70,6 +70,15 @@ export async function login(page: Page, email: string, password: string) {
   await expect(page.getByText("Visão clara do mês, sem abrir planilha.")).toBeVisible();
 }
 
+export async function chooseAccountScope(page: Page, accountId: string) {
+  const isMobile = await page.evaluate(() => window.innerWidth < 1024);
+  const selectorId = isMobile ? "global-account-mobile" : "global-account-desktop";
+  const selector = page.locator(`#${selectorId}`);
+  await expect(selector).toBeVisible();
+  await expect(selector.locator(`option[value="${accountId}"]`)).toHaveCount(1);
+  await selector.selectOption(accountId);
+}
+
 export async function chooseMonth(page: Page, pickerId: string, monthValue: string) {
   const [yearText, monthText] = monthValue.split("-");
   const year = Number(yearText);

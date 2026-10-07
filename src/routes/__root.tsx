@@ -1,8 +1,11 @@
+import { useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
+import { AccountScopeProvider } from "@/lib/account-scope";
+import { createClient } from "@/lib/supabase/client";
 import styles from "../styles.css?url";
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient; user?: { id: string } | null }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -26,6 +29,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "apple-touch-icon", href: "/pwa-icon.svg" },
     ],
   }),
+  beforeLoad: async () => {
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    return { user: data.session?.user ?? null };
+  },
   shellComponent: RootShell,
   component: RootComponent,
 });
@@ -42,11 +50,19 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
+  const { queryClient, user } = Route.useRouteContext();
 
-  return (
+  const content = useMemo(() => (
     <QueryClientProvider client={queryClient}>
       <Outlet />
     </QueryClientProvider>
+  ), [queryClient]);
+
+  if (!user) return content;
+
+  return (
+    <AccountScopeProvider userId={user.id}>
+      {content}
+    </AccountScopeProvider>
   );
 }

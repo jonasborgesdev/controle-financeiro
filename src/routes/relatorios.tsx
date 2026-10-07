@@ -7,6 +7,7 @@ import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { filterEntriesByAccount, useAccountScope } from "@/lib/account-scope";
 import { entryActualAmount, formatCurrency, isFinanceClassification, monthBounds, monthLabel, parseMonthKey } from "@/lib/finance";
 import { financingEntriesForMonth } from "@/lib/financings";
 import { buildAnnualReport, buildMonthlyReport, type ReportDistributionRow } from "@/lib/reports";
@@ -18,7 +19,7 @@ type ReportMode = "monthly" | "annual";
 const today = new Date();
 const currentMonth = today.toISOString().slice(0, 7);
 const currentYear = today.getFullYear();
-const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,notes,created_at,updated_at";
+const entryColumns = "id,user_id,monthly_balance_id,account_id,category_id,entry_type,status,description,expected_amount,actual_amount,due_date,paid_date,source,recurring_rule_id,external_id,transfer_group_id,notes,created_at,updated_at";
 const accountColumns = "id,user_id,name,type,bank,description,initial_balance,is_active,color,icon,created_at,updated_at";
 const categoryColumns = "id,user_id,name,icon,color,type,parent_id,is_default,is_active,created_at";
 const goalColumns = "id,user_id,name,target_amount,current_amount,monthly_target,deadline,is_active,created_at,updated_at";
@@ -37,10 +38,10 @@ export const Route = createFileRoute("/relatorios")({
 
 function ReportsPage() {
   const { user } = Route.useRouteContext();
+  const { accountId: selectedAccountId } = useAccountScope();
   const [mode, setMode] = useState<ReportMode>("monthly");
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [previousYearEntries, setPreviousYearEntries] = useState<FinancialEntry[]>([]);
@@ -86,16 +87,18 @@ function ReportsPage() {
   }, [mode, selectedMonth, selectedYear]);
 
   const visibleCategories = categories.filter((category) => isFinanceClassification(category, user.id));
-  const filteredEntries = entries.filter((entry) => {
-    const accountMatches = selectedAccountId === "all" || entry.account_id === selectedAccountId;
+  const accountFilteredEntries = filterEntriesByAccount(entries, selectedAccountId);
+  const accountFilteredPreviousYearEntries = filterEntriesByAccount(previousYearEntries, selectedAccountId);
+  const filteredEntries = accountFilteredEntries.filter((entry) => {
     const categoryMatches = selectedCategoryId === "all" || entry.category_id === selectedCategoryId;
-    return accountMatches && categoryMatches;
+    return categoryMatches;
   });
   const accountById = useMemo(() => new Map(accounts.map((account) => [account.id, account.name])), [accounts]);
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category.name])), [categories]);
   const monthlyReport = useMemo(() => buildMonthlyReport(filteredEntries, accounts, categories, goals), [filteredEntries, accounts, categories, goals]);
+  const filteredPreviousYearEntries = accountFilteredPreviousYearEntries.filter((entry) => selectedCategoryId === "all" || entry.category_id === selectedCategoryId);
   const annualReport = useMemo(() => buildAnnualReport(filteredEntries, accounts, categories, goals, selectedYear), [filteredEntries, accounts, categories, goals, selectedYear]);
-  const previousAnnualReport = useMemo(() => buildAnnualReport(previousYearEntries, accounts, categories, goals, selectedYear - 1), [previousYearEntries, accounts, categories, goals, selectedYear]);
+  const previousAnnualReport = useMemo(() => buildAnnualReport(filteredPreviousYearEntries, accounts, categories, goals, selectedYear - 1), [filteredPreviousYearEntries, accounts, categories, goals, selectedYear]);
   const { year, month } = parseMonthKey(selectedMonth);
   const periodLabel = mode === "monthly" ? monthLabel(year, month) : String(selectedYear);
   const hasEntries = filteredEntries.length > 0;
@@ -115,16 +118,10 @@ function ReportsPage() {
               ) : (
                 <Input type="number" min="2000" max="2100" value={selectedYear} onChange={(event) => setSelectedYear(Number(event.target.value || currentYear))} />
               )}
-              <div className="grid gap-2 sm:grid-cols-2">
-                <select className="finance-select" value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)} aria-label="Filtrar por conta">
-                  <option value="all">Todas as contas</option>
-                  {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                </select>
-                <select className="finance-select" value={selectedCategoryId} onChange={(event) => setSelectedCategoryId(event.target.value)} aria-label="Filtrar por classificação">
-                  <option value="all">Todas as classificações</option>
-                  {visibleCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                </select>
-              </div>
+              <select className="finance-select" value={selectedCategoryId} onChange={(event) => setSelectedCategoryId(event.target.value)} aria-label="Filtrar por classificação">
+                <option value="all">Todas as classificações</option>
+                {visibleCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
               <Button type="button" variant="outline" className="gap-2" onClick={() => window.print()}>
                 <Printer className="size-4" aria-hidden="true" />
                 Exportar / imprimir PDF
@@ -146,7 +143,7 @@ function ReportsPage() {
             {mode === "monthly" ? (
               <MonthlyReportView report={monthlyReport} periodLabel={periodLabel} accountById={accountById} categoryById={categoryById} />
             ) : (
-              <AnnualReportView report={annualReport} previousReport={previousAnnualReport} previousEntriesCount={previousYearEntries.length} year={selectedYear} />
+              <AnnualReportView report={annualReport} previousReport={previousAnnualReport} previousEntriesCount={filteredPreviousYearEntries.length} year={selectedYear} />
             )}
           </section>
         ) : null}
@@ -213,6 +210,12 @@ function MonthlyReportView({ report, periodLabel, accountById, categoryById }: {
           <EntriesCardContent entries={financingEntriesForMonth(report.entries)} tone="expense" accountById={accountById} categoryById={categoryById} emptyText="Nenhuma parcela de financiamento gerada neste mês." />
         </CardContent>
       </Card>
+
+      <InternalMovementsCard
+        title="Movimentações internas no mês"
+        description="Transferências entre contas: não entram nos totais de ganhos e gastos."
+        internal={report.internalMovements}
+      />
     </>
   );
 }
@@ -279,7 +282,35 @@ function AnnualReportView({ report, previousReport, previousEntriesCount, year }
           {previousEntriesCount > 0 ? <PreviousYearComparison current={report.summary} previous={previousReport.summary} /> : <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Ainda não há dados do ano anterior para comparar.</p>}
         </CardContent>
       </Card>
+
+      <InternalMovementsCard
+        title={`Movimentações internas em ${year}`}
+        description="Transferências entre contas no ano: fora dos totais reais de ganhos e gastos."
+        internal={report.internalMovements}
+      />
     </>
+  );
+}
+
+function InternalMovementsCard({ title, description, internal }: { title: string; description: string; internal: { count: number; pairs: number; expectedTotal: number; actualTotal: number } }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {internal.count === 0 ? (
+          <p className="rounded-2xl border border-cyan-300/20 bg-cyan-400/[0.08] p-4 text-sm text-cyan-100">Nenhuma transferência no período.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <InfoRow label="Transferências" value={`${internal.pairs} par(es) · ${internal.count} lançamento(s)`} />
+            <InfoRow label="Total previsto" value={formatCurrency(internal.expectedTotal)} />
+            <InfoRow label="Total realizado" value={formatCurrency(internal.actualTotal)} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

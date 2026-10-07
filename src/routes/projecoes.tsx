@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { MonthPicker } from "@/components/month-picker";
 import { PageHero } from "@/components/page-hero";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { filterEntriesByAccount, useAccountScope } from "@/lib/account-scope";
 import { formatCurrency, monthLabel, parseMonthKey, shiftMonth } from "@/lib/finance";
 import { buildFinancialProjection, type ProjectionMonth, type ProjectionStatus, type ProjectionSummary } from "@/lib/projections";
 import { createClient } from "@/lib/supabase/client";
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/projecoes")({
 });
 
 function ProjectionsPage() {
+  const { accountId: selectedAccountId } = useAccountScope();
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [projectionMonths, setProjectionMonths] = useState(6);
   const [projection, setProjection] = useState<ProjectionSummary | null>(null);
@@ -51,10 +53,14 @@ function ProjectionsPage() {
         supabase.from("financial_entries").select(entryColumns).gte("due_date", `${pastStart}-01`).lte("due_date", endDate).order("due_date").limit(3000),
         supabase.from("accounts").select(accountColumns).eq("is_active", true).order("name"),
         supabase.from("categories").select(categoryColumns).eq("is_active", true).order("type").order("name"),
-        supabase.from("recurring_rules").select(ruleColumns).eq("is_active", true).order("description"),
+        selectedAccountId === "all"
+          ? supabase.from("recurring_rules").select(ruleColumns).eq("is_active", true).order("description")
+          : supabase.from("recurring_rules").select(ruleColumns).eq("is_active", true).eq("account_id", selectedAccountId).order("description"),
         supabase.from("budgets").select(budgetColumns).gte("year", Number(pastStart.slice(0, 4))).lte("year", Number(futureEnd.slice(0, 4))).order("year").order("month"),
         supabase.from("savings_goals").select(goalColumns).eq("is_active", true).order("created_at", { ascending: false }).limit(1),
-        supabase.from("financings").select(financingColumns).eq("status", "active").order("due_day"),
+        selectedAccountId === "all"
+          ? supabase.from("financings").select(financingColumns).eq("status", "active").order("due_day")
+          : supabase.from("financings").select(financingColumns).eq("status", "active").eq("account_id", selectedAccountId).order("due_day"),
       ]);
 
       const requestError = entriesResult.error ?? accountsResult.error ?? categoriesResult.error ?? rulesResult.error ?? budgetsResult.error ?? goalsResult.error;
@@ -74,13 +80,14 @@ function ProjectionsPage() {
           budgets: budgetsResult.data as Budget[] ?? [],
           savingsGoals: goalsResult.data as SavingsGoal[] ?? [],
           financings: financingsResult.error ? [] : financingsResult.data as Financing[] ?? [],
+          accountId: selectedAccountId,
         }));
       }
       setLoading(false);
     };
 
     void loadProjection();
-  }, [selectedMonth, projectionMonths, year, month]);
+  }, [selectedMonth, projectionMonths, year, month, selectedAccountId]);
 
   return (
     <AppShell>

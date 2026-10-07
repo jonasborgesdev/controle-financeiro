@@ -39,7 +39,7 @@ test.describe("fluxo financeiro autenticado", () => {
     await page.getByLabel("Banco").fill("Banco E2E");
     await page.getByLabel("Saldo inicial").fill("123.45");
     await page.getByRole("button", { name: "Salvar conta" }).click();
-    await expect(page.getByText(accountName)).toBeVisible();
+    await expect(page.getByRole("heading", { name: accountName })).toBeVisible();
     await expect(page.getByText("Saldo previsto", { exact: true })).toBeVisible();
     await expect(page.getByText(/123,45/).first()).toBeVisible();
 
@@ -53,7 +53,7 @@ test.describe("fluxo financeiro autenticado", () => {
     await page.getByLabel("Valor real").fill("950");
     await chooseDate(page, "due", entryDate);
     await chooseDate(page, "paid-date", entryDate);
-    await page.getByLabel("Conta").selectOption({ label: accountName });
+    await page.locator("#account").selectOption({ label: accountName });
     await page.getByRole("button", { name: "Salvar lançamento" }).click();
 
     const entryRow = page.getByText(entryDescription).locator("xpath=ancestor::*[@data-testid='entry-list-item'][1]");
@@ -74,7 +74,7 @@ test.describe("fluxo financeiro autenticado", () => {
     await page.getByLabel("Saldo inicial").fill("-500");
     await page.getByRole("button", { name: "Salvar conta" }).click();
 
-    await expect(page.getByText(accountName)).toBeVisible();
+    await expect(page.getByRole("heading", { name: accountName })).toBeVisible();
     await expect(page.getByText(/-R\$\s*500,00/).first()).toBeVisible();
   });
 

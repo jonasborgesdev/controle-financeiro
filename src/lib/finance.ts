@@ -1,3 +1,5 @@
+import { isInternalTransfer, transferCategoryIds } from "@/lib/transfers";
+import { isValidDateString, parseMoneyAmount } from "@/lib/security";
 import type { Account, Budget, Category, FinancialEntry, MonthlyBalance, RecurringRule, RecurringTransaction, SavingsGoal, Transaction } from "@/types/database";
 
 export const defaultExpenseClassifications = new Set(["Gastos fixos", "Gastos variáveis"]);
@@ -82,11 +84,17 @@ export function entryEffectiveDate(entry: Pick<FinancialEntry, "due_date" | "pai
   return entry.status === "paid" && entry.paid_date ? entry.paid_date : entry.due_date;
 }
 
-export function summarizeEntries(entries: FinancialEntry[]) {
-  const expectedIncome = entries.filter((entry) => entry.entry_type === "income").reduce((total, entry) => total + Number(entry.expected_amount), 0);
-  const expectedExpenses = entries.filter((entry) => entry.entry_type === "expense").reduce((total, entry) => total + Number(entry.expected_amount), 0);
-  const actualIncome = entries.filter((entry) => entry.entry_type === "income" && entry.status === "paid").reduce((total, entry) => total + entryActualAmount(entry), 0);
-  const actualExpenses = entries.filter((entry) => entry.entry_type === "expense" && entry.status === "paid").reduce((total, entry) => total + entryActualAmount(entry), 0);
+export function summarizeEntries(entries: FinancialEntry[], options?: { includeTransfers?: boolean }) {
+  // Semana 10.2: transferências (source='transfer' ou par linkado) não entram
+  // nos totais reais de receita/despesa. Saldos por conta seguem em
+  // accountBalanceFromEntries, que continua somando todos os lados.
+  // Semana 10.3: quando filtrado por conta específica, includeTransfers=true
+  // faz a transferência contar como saída daquele caixa (ex.: 4500 - 4000 = 500).
+  const real = options?.includeTransfers ? entries : entries.filter((entry) => !isInternalTransfer(entry));
+  const expectedIncome = real.filter((entry) => entry.entry_type === "income").reduce((total, entry) => total + Number(entry.expected_amount), 0);
+  const expectedExpenses = real.filter((entry) => entry.entry_type === "expense").reduce((total, entry) => total + Number(entry.expected_amount), 0);
+  const actualIncome = real.filter((entry) => entry.entry_type === "income" && entry.status === "paid").reduce((total, entry) => total + entryActualAmount(entry), 0);
+  const actualExpenses = real.filter((entry) => entry.entry_type === "expense" && entry.status === "paid").reduce((total, entry) => total + entryActualAmount(entry), 0);
 
   return {
     expectedIncome,
@@ -101,13 +109,17 @@ export function summarizeEntries(entries: FinancialEntry[]) {
 }
 
 export function expensesByBudget(categories: Category[], budgets: Budget[], entries: FinancialEntry[]) {
+  // Semana 10.2: transferência não conta como gasto de orçamento (com fallback
+  // para legados com categoria Transferências sem source='transfer').
+  const transferIds = transferCategoryIds(categories);
+  const real = entries.filter((entry) => !isInternalTransfer(entry, transferIds));
   const budgetByCategory = new Map(budgets.map((budget) => [budget.category_id, Number(budget.planned_amount)]));
 
   return categories
     .filter((category) => category.type === "expense")
     .map((category) => {
       const planned = budgetByCategory.get(category.id) ?? 0;
-      const actual = entries
+      const actual = real
         .filter((entry) => entry.entry_type === "expense" && entry.status === "paid" && entry.category_id === category.id)
         .reduce((total, entry) => total + entryActualAmount(entry), 0);
       return {
@@ -154,8 +166,9 @@ export function accountBalancesFromEntries(accounts: Account[], entries: Financi
 
 export function expensesByCategory(entries: FinancialEntry[], categories: Category[]) {
   const categoryById = new Map(categories.map((category) => [category.id, category]));
+  const transferIds = transferCategoryIds(categories);
   const totals = entries
-    .filter((entry) => entry.entry_type === "expense")
+    .filter((entry) => entry.entry_type === "expense" && !isInternalTransfer(entry, transferIds))
     .reduce<Map<string, { id: string; name: string; value: number; color: string | null }>>((map, entry) => {
       const category = entry.category_id ? categoryById.get(entry.category_id) : null;
       const id = category?.id ?? "sem-categoria";
@@ -216,6 +229,46 @@ export function entryStatusPatch(entry: Pick<FinancialEntry, "status" | "expecte
     actual_amount: entry.actual_amount ?? Number(entry.expected_amount),
     paid_date: entry.paid_date ?? todayValue,
   };
+}
+
+// Semana 10.4: resumo sticky e confirmação de realização.
+// Ambos reaproveitam o mesmo `summary` dos cards, sem query nova.
+
+export function buildStickySummary(summary: ReturnType<typeof summarizeEntries>, balanceBeforeMonth = 0) {
+  return {
+    expectedBalance: balanceBeforeMonth + summary.expectedBalance,
+    actualBalance: balanceBeforeMonth + summary.actualBalance,
+  };
+}
+
+export function countEntriesByStatus(entries: Pick<FinancialEntry, "status">[]) {
+  let paid = 0;
+  let planned = 0;
+  for (const entry of entries) {
+    if (entry.status === "paid") paid += 1;
+    else planned += 1;
+  }
+  return { paid, planned };
+}
+
+export function realizationPrefill(entry: Pick<FinancialEntry, "status" | "expected_amount" | "actual_amount" | "paid_date">, todayValue = new Date().toISOString().slice(0, 10)) {
+  return {
+    amount: entry.actual_amount ?? Number(entry.expected_amount),
+    date: entry.paid_date ?? todayValue,
+  };
+}
+
+export type RealizationPatch = { status: "paid"; actual_amount: number; paid_date: string };
+
+export function buildRealizationPatch(
+  entry: Pick<FinancialEntry, "status" | "expected_amount" | "actual_amount" | "paid_date">,
+  input: { amount: string | number; date: string },
+): { patch: RealizationPatch; error: null } | { patch: null; error: string } {
+  if (entry.status === "paid") return { patch: null, error: "Este lançamento já está realizado." };
+  const actualAmount = parseMoneyAmount(input.amount);
+  if (actualAmount === null) return { patch: null, error: "Informe um valor real válido maior que zero." };
+  if (!isValidDateString(input.date)) return { patch: null, error: "Informe uma data de realização válida." };
+  return { patch: { status: "paid", actual_amount: actualAmount, paid_date: input.date }, error: null };
 }
 
 export function recurringRuleAppliesToMonth(rule: RecurringRule, year: number, month: number) {

@@ -133,6 +133,29 @@ describe("ai", () => {
     expect(summary.adjustableEntries[0]?.amount).toBe(3416.4);
   });
 
+  it("respeita accountId no resumo e mantém anonimização Conta 1", () => {
+    const accountA = account({ id: "account-a", name: "Conta A" });
+    const accountB = account({ id: "account-b", name: "Conta B" });
+    const summary = buildAiInputSummary({
+      analysisType: "monthly",
+      periodStart: "2026-09-01",
+      periodEnd: "2026-09-30",
+      entries: [
+        entry({ account_id: "account-a", entry_type: "income", expected_amount: 3000, actual_amount: 3000, status: "paid" }),
+        entry({ account_id: "account-b", entry_type: "income", expected_amount: 7000, actual_amount: 7000, status: "paid" }),
+      ],
+      accounts: [accountA, accountB],
+      categories: [category({ type: "income", name: "Ganhos" })],
+      goals: [],
+      financings: [],
+      accountId: "account-a",
+    });
+
+    expect(summary.totals.actualIncome).toBe(3000);
+    expect(summary.accounts).toHaveLength(1);
+    expect(summary.accounts[0]?.label).toBe("Conta 1");
+  });
+
   it("marca possíveis duplicidades e transferências internas nos candidatos", () => {
     const summary = buildAiInputSummary({
       analysisType: "monthly",

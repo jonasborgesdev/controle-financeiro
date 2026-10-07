@@ -111,6 +111,14 @@ export function tryAcquireActionLock(key: string, ttlMs = 60000, now = Date.now(
   return true;
 }
 
+/**
+ * Libera o lock adquirido por tryAcquireActionLock após a ação terminar,
+ * permitindo uma nova tentativa legítima (ex.: alternar status duas vezes).
+ */
+export function releaseActionLock(key: string) {
+  actionLocks.delete(key);
+}
+
 export function clearActionLocks() {
   actionLocks.clear();
 }

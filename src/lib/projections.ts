@@ -1,5 +1,6 @@
 import type { Account, Budget, Category, FinancialEntry, Financing, RecurringRule, SavingsGoal } from "@/types/database";
-import { dueDateForMonth, entryActualSignedAmount, entryProjectedSignedAmount, monthKey, recurringRuleAppliesToMonth } from "@/lib/finance";
+import { dueDateForMonth, entryActualSignedAmount, entryExpectedSignedAmount, entryProjectedSignedAmount, monthKey, recurringRuleAppliesToMonth } from "@/lib/finance";
+import { isInternalTransfer, transferCategoryIds } from "@/lib/transfers";
 
 export type ProjectionStatus = "healthy" | "attention" | "critical";
 
@@ -15,6 +16,7 @@ export type ProjectionMonth = {
   projectedIncome: number;
   projectedExpenses: number;
   projectedBalance: number;
+  transferNet: number;
   cumulativeBalance: number;
   savingsTarget: number;
   savingsGap: number;
@@ -49,6 +51,7 @@ type BuildProjectionInput = {
   financings: Financing[];
   accounts: Account[];
   categories?: Category[];
+  accountId?: string;
 };
 
 export function buildFinancialProjection(input: BuildProjectionInput): ProjectionSummary {
@@ -57,16 +60,25 @@ export function buildFinancialProjection(input: BuildProjectionInput): Projectio
   const projectionMonths = Array.from({ length: monthsToProject }, (_, index) => addMonths(input.startYear, input.startMonth, index));
   const firstMonth = projectionMonths[0]!;
   const firstMonthKey = monthKey(firstMonth.year, firstMonth.month);
-  const startingBalance = currentBalanceBeforeMonth(input.accounts, input.entries, firstMonthKey);
+  const selectedAccountId = input.accountId ?? "all";
+  const scopedAccounts = selectedAccountId === "all" ? input.accounts : input.accounts.filter((account) => account.id === selectedAccountId);
+  const scopedEntries = selectedAccountId === "all" ? input.entries : input.entries.filter((entry) => entry.account_id === selectedAccountId);
+  // Semana 10.3: quando filtrado por conta específica, transferências contam
+  // como receita/despesa daquele caixa (ex.: Santander recebe 6900 = é receita dela).
+  // Em "Todas as contas", transferências se cancelam e são excluídas dos totais.
+  const startingBalance = currentBalanceBeforeMonth(scopedAccounts, scopedEntries, firstMonthKey);
+  const transferIds = transferCategoryIds(input.categories ?? []);
+  const isFilteredByAccount = selectedAccountId !== "all";
+  const realEntries = isFilteredByAccount ? scopedEntries : scopedEntries.filter((entry) => !isInternalTransfer(entry, transferIds));
   const categoryById = new Map((input.categories ?? []).map((category) => [category.id, category]));
-  const variableAverage = variableAverages(input.entries, categoryById, input.startYear, input.startMonth, averageWindowMonths);
+  const variableAverage = variableAverages(realEntries, categoryById, input.startYear, input.startMonth, averageWindowMonths);
   const activeGoal = input.savingsGoals.find((goal) => goal.is_active) ?? null;
   const savingsTarget = Number(activeGoal?.monthly_target ?? 0);
   let cumulativeBalance = startingBalance;
 
   const months = projectionMonths.map(({ year, month }) => {
     const key = monthKey(year, month);
-    const entries = input.entries.filter((entry) => entry.due_date.startsWith(key));
+    const entries = realEntries.filter((entry) => entry.due_date.startsWith(key));
     const explicit = summarizeExplicitEntries(entries);
     const missingRecurring = summarizeMissingRecurring(input.recurringRules, entries, year, month);
     const missingFinancing = summarizeMissingFinancing(input.financings, entries, year, month);
@@ -96,6 +108,7 @@ export function buildFinancialProjection(input: BuildProjectionInput): Projectio
       projectedIncome,
       projectedExpenses,
       projectedBalance,
+      transferNet: 0,
       cumulativeBalance,
       savingsTarget,
       savingsGap,
@@ -129,6 +142,9 @@ export function buildFinancialProjection(input: BuildProjectionInput): Projectio
       "Recorrências ativas entram quando ainda não existe lançamento gerado para o mês.",
       "Orçamentos completam despesas por classificação quando o planejado está maior que os lançamentos existentes.",
       "Financiamentos ativos entram pelo lançamento já gerado ou pela parcela estimada do contrato.",
+      isFilteredByAccount
+        ? "Transferências entre contas contam como receita/despesa da conta selecionada (ex.: dinheiro recebido de outra conta é entrada)."
+        : "Transferências entre contas não entram como receita/despesa (só movimentam saldos por conta).",
       "A IA não participa do cálculo; ela pode apenas explicar dados em outra área do app.",
     ],
     alerts: buildProjectionAlerts(months),
@@ -192,7 +208,7 @@ function variableAverages(entries: FinancialEntry[], categoryById: Map<string, C
 }
 
 function isVariableEntry(entry: FinancialEntry, categoryById: Map<string, Category>) {
-  if (entry.source === "recurring" || entry.source === "financing" || entry.financing_id) return false;
+  if (entry.source === "recurring" || entry.source === "financing" || entry.source === "transfer" || entry.transfer_group_id || entry.financing_id) return false;
   const category = entry.category_id ? categoryById.get(entry.category_id) : null;
   if (category?.name.toLowerCase().includes("fix")) return false;
   return true;

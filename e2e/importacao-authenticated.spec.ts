@@ -29,11 +29,11 @@ test.describe("importacao autenticada", () => {
     await page.getByLabel("Banco").fill("Nubank");
     await page.getByLabel("Saldo inicial").fill("0");
     await page.getByRole("button", { name: "Salvar conta" }).click();
-    await expect(page.getByText(accountName)).toBeVisible();
+    await expect(page.getByRole("heading", { name: accountName })).toBeVisible();
 
     await page.getByRole("link", { name: "Importar" }).click();
     await expect(page).toHaveURL(/\/importacao/);
-    await page.getByLabel("Conta").selectOption({ label: accountName });
+    await page.locator("#import-account").selectOption({ label: accountName });
     await page.getByLabel("Banco").selectOption("nubank");
     await page.getByLabel("Arquivo CSV/OFX/PDF").setInputFiles(fixturePath);
     await page.getByRole("button", { name: "Processar" }).click();
